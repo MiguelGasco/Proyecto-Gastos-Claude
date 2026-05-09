@@ -299,6 +299,9 @@ def create_workbook(path: Path) -> None:
     _build_dashboard(wb["Dashboard"])
     _add_charts(wb)
 
+    wb["_aux"].sheet_state = "hidden"
+    wb.active = wb.sheetnames.index("Dashboard")
+
     wb.save(path)
 
 

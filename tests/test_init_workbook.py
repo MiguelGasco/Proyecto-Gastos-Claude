@@ -167,3 +167,13 @@ def test_dashboard_has_pie_and_line_charts(tmp_path: Path):
     chart_types = {type(c).__name__ for c in dash._charts}
     assert "PieChart" in chart_types, f"got {chart_types}"
     assert "LineChart" in chart_types, f"got {chart_types}"
+
+
+def test_aux_sheet_is_hidden(tmp_path: Path):
+    out = tmp_path / "gastos.xlsx"
+    create_workbook(out)
+
+    wb = openpyxl.load_workbook(out)
+    assert wb["_aux"].sheet_state == "hidden"
+    # Dashboard is the active/visible default sheet
+    assert wb.active.title == "Dashboard"
