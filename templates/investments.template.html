@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Control de Inversiones</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0A0E1A;
+      --card: #131A2A;
+      --card-hover: #182137;
+      --card-border: #1F2A3F;
+      --grid-line: #1A2333;
+      --ink: #FFFFFF;
+      --muted: #7A8499;
+      --muted-strong: #9AA5BD;
+      --w1: #FF4D7E;
+      --w2: #B968D9;
+      --w3: #4DD0E1;
+      --w4: #FFB74D;
+      --w5: #4DD494;
+      --mint: #4DD494;
+      --positive: #4DD494;
+      --negative: #FF5252;
+    }
+    html { color-scheme: dark; }
+    body {
+      background: var(--bg);
+      color: var(--ink);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-weight: 400;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    .dashboard { max-width: 1500px; margin: 0 auto; padding: 28px; }
+
+    .top-row { display: grid; grid-template-columns: 280px 1fr 320px; gap: 16px; margin-bottom: 16px; }
+    .card { background: var(--card); border-radius: 14px; padding: 22px; border: 1px solid var(--card-border); transition: border-color 0.15s; }
+    .card:hover { border-color: var(--card-hover); }
+    .card-title { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.8px; color: var(--muted); margin-bottom: 14px; }
+
+    .title-card { display: flex; flex-direction: column; }
+    .title-main { font-size: 18px; font-weight: 800; letter-spacing: 1.5px; line-height: 1.2; }
+    .title-sub { font-size: 13px; color: var(--muted); margin-top: 6px; text-transform: capitalize; font-weight: 400; }
+    .title-rule { height: 1px; background: var(--card-border); margin: 18px -22px; }
+    .nav-block { padding-top: 4px; }
+    .nav-label { font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.8px; color: var(--muted); margin-bottom: 12px; }
+    .nav-pills { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .nav-pill {
+      display: flex; align-items: center; justify-content: center;
+      padding: 8px 4px;
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      text-decoration: none;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .nav-pill:hover { border-color: var(--mint); color: var(--mint); }
+    .nav-pill.active { background: var(--mint); color: #0A0E1A; border-color: var(--mint); cursor: default; }
+
+    .range-block { padding-top: 4px; }
+    .range-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+    .range-pill {
+      flex: 1;
+      min-width: 38px;
+      padding: 6px 8px;
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--card-border);
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.15s;
+      text-align: center;
+    }
+    .range-pill:hover { border-color: var(--muted); color: var(--ink); }
+    .range-pill.active { background: var(--mint); color: #0A0E1A; border-color: var(--mint); }
+
+    .hero-card { display: flex; flex-direction: column; }
+    .hero-row { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; gap: 14px; }
+    .hero-stat { }
+    .hero-stat .hero-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); margin-bottom: 8px; }
+    .hero-stat .hero-value { font-size: 36px; font-weight: 700; color: var(--ink); letter-spacing: -1px; line-height: 1.05; font-variant-numeric: tabular-nums; }
+    .hero-delta { display: inline-flex; align-items: baseline; gap: 8px; margin-top: 6px; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .hero-delta.positive { color: var(--mint); }
+    .hero-delta.negative { color: var(--negative); }
+    .chart-container { position: relative; height: 220px; }
+    .chart-container.tall { height: 360px; }
+    .chart-container.short { height: 200px; }
+    .chart-container.donut-big { height: 240px; }
+    .chart-container.spark { height: 80px; margin-top: 10px; }
+
+    .donut-card { position: relative; display: flex; flex-direction: column; }
+    .donut-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; margin-bottom: 10px; }
+    .donut-side-stat { text-align: left; min-width: 100px; }
+    .donut-side-stat .label { font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); margin-bottom: 4px; }
+    .donut-side-stat .value { font-size: 14px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+    .donut-wrapper { position: relative; }
+    .donut-center { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; pointer-events: none; }
+    .donut-center-value { font-size: 32px; font-weight: 700; letter-spacing: -1px; color: var(--mint); font-variant-numeric: tabular-nums; line-height: 1; }
+    .donut-center-value.negative { color: var(--negative); }
+    .donut-center-label { font-size: 9px; text-transform: uppercase; letter-spacing: 1.8px; color: var(--muted); margin-top: 6px; font-weight: 600; }
+
+    /* KPI 4-cards row */
+    .kpis-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 16px; }
+    .kpi-mini { background: var(--card); border-radius: 14px; padding: 20px; border: 1px solid var(--card-border); transition: border-color 0.15s; }
+    .kpi-mini:hover { border-color: var(--card-hover); }
+    .kpi-mini-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.8px; color: var(--muted); margin-bottom: 12px; }
+    .kpi-mini-value { font-size: 24px; font-weight: 700; color: var(--ink); letter-spacing: -0.5px; font-variant-numeric: tabular-nums; line-height: 1.1; }
+    .kpi-mini-value.positive { color: var(--mint); }
+    .kpi-mini-value.negative { color: var(--negative); }
+    .kpi-mini-sub { font-size: 11px; color: var(--muted); margin-top: 6px; font-variant-numeric: tabular-nums; }
+
+    /* Evolution */
+    .evo-card { margin-bottom: 16px; }
+    .evo-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
+
+    /* 2-column row */
+    .two-col-row { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; margin-bottom: 16px; }
+    @media (max-width: 1100px) {
+      .two-col-row { grid-template-columns: 1fr; }
+      .top-row { grid-template-columns: 1fr; }
+      .kpis-row { grid-template-columns: 1fr 1fr; }
+    }
+
+    /* Holdings table */
+    .holdings-table { width: 100%; border-collapse: collapse; }
+    .holdings-table thead th { text-align: left; font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); padding: 0 10px 12px; border-bottom: 1px solid var(--card-border); }
+    .holdings-table tbody tr { border-bottom: 1px solid var(--card-border); }
+    .holdings-table tbody tr:last-child { border-bottom: none; }
+    .holdings-table td { padding: 12px 10px; font-size: 13px; color: var(--ink); vertical-align: middle; font-variant-numeric: tabular-nums; }
+    .holdings-table .ticker-cell { display: flex; align-items: center; gap: 10px; }
+    .holdings-table .ticker-avatar {
+      width: 28px; height: 28px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;
+      font-size: 10px; font-weight: 700; color: #0A0E1A; letter-spacing: 0.5px; flex-shrink: 0;
+    }
+    .holdings-table .ticker-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .holdings-table .ticker-symbol { font-weight: 600; font-size: 13px; color: var(--ink); }
+    .holdings-table .ticker-name { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; }
+    .holdings-table .num { text-align: right; }
+    .holdings-table .pl { font-weight: 600; }
+    .holdings-table .pl.positive { color: var(--mint); }
+    .holdings-table .pl.negative { color: var(--negative); }
+    .holdings-table .col-bar { width: 100px; }
+    .holdings-table .alloc-bar { height: 4px; background: var(--card-border); border-radius: 2px; overflow: hidden; }
+    .holdings-table .alloc-bar-fill { height: 100%; background: var(--mint); border-radius: 2px; }
+
+    /* Operations table */
+    .ops-table { width: 100%; border-collapse: collapse; }
+    .ops-table thead th { text-align: left; font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); padding: 0 12px 12px; border-bottom: 1px solid var(--card-border); }
+    .ops-table tbody tr { border-bottom: 1px solid var(--card-border); }
+    .ops-table tbody tr:last-child { border-bottom: none; }
+    .ops-table td { padding: 11px 12px; font-size: 13px; color: var(--ink); vertical-align: middle; font-variant-numeric: tabular-nums; }
+    .ops-table .col-date { color: var(--muted); width: 90px; }
+    .ops-table .col-tipo { font-size: 10px; letter-spacing: 1.4px; text-transform: uppercase; font-weight: 600; width: 80px; }
+    .ops-table .col-tipo.compra { color: var(--mint); }
+    .ops-table .col-tipo.venta { color: var(--w4); }
+    .ops-table .col-ticker { font-weight: 600; width: 80px; }
+    .ops-table .col-units { text-align: right; width: 90px; }
+    .ops-table .col-price { text-align: right; width: 110px; color: var(--muted-strong); }
+    .ops-table .col-total { text-align: right; font-weight: 600; width: 130px; }
+    .ops-table .col-total.compra { color: var(--ink); }
+    .ops-table .col-total.venta { color: var(--mint); }
+
+    /* Pagination */
+    .pagination { display: flex; justify-content: space-between; align-items: center; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--card-border); }
+    .pag-btn { background: transparent; color: var(--ink); border: 1px solid var(--card-border); border-radius: 6px; padding: 6px 14px; font-family: inherit; font-size: 12px; font-weight: 500; cursor: pointer; transition: border-color 0.15s, color 0.15s; color-scheme: dark; }
+    .pag-btn:hover:not(:disabled) { border-color: var(--mint); color: var(--mint); }
+    .pag-btn:disabled { color: var(--muted); cursor: not-allowed; opacity: 0.4; }
+    .pag-info { color: var(--muted); font-size: 11px; font-weight: 500; font-variant-numeric: tabular-nums; letter-spacing: 0.3px; }
+
+    .empty { color: var(--muted); font-size: 13px; padding: 24px 0; text-align: center; font-style: italic; }
+    footer { margin-top: 32px; padding-top: 18px; border-top: 1px solid var(--card-border); text-align: center; color: var(--muted); font-size: 10px; letter-spacing: 0.5px; }
+    .updated-stamp { font-size: 10px; color: var(--muted); font-weight: 500; letter-spacing: 0.5px; }
+    .updated-stamp .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--mint); margin-right: 6px; vertical-align: middle; animation: pulse 2s ease-in-out infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+  </style>
+</head>
+<body>
+  <main class="dashboard">
+
+    <section class="top-row">
+      <div class="card title-card">
+        <div class="title-main">CONTROL DE<br>INVERSIONES</div>
+        <div class="title-sub" id="subtitle">—</div>
+        <div class="title-rule"></div>
+        <div class="nav-block">
+          <div class="nav-label">Navegación</div>
+          <div class="nav-pills">
+            <a class="nav-pill" href="dashboard.html">Gastos</a>
+            <a class="nav-pill active" href="investments.html">Inversiones</a>
+          </div>
+        </div>
+        <div class="title-rule"></div>
+        <div class="range-block">
+          <div class="nav-label">Rango</div>
+          <div class="range-pills" id="range-pills">
+            <button class="range-pill" data-range="1m" type="button">1M</button>
+            <button class="range-pill" data-range="3m" type="button">3M</button>
+            <button class="range-pill" data-range="6m" type="button">6M</button>
+            <button class="range-pill" data-range="1y" type="button">1Y</button>
+            <button class="range-pill active" data-range="all" type="button">Todo</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card hero-card">
+        <div class="hero-row">
+          <div class="hero-stat">
+            <div class="hero-label">Valor actual del portfolio</div>
+            <div class="hero-value" id="hero-value">—</div>
+            <div class="hero-delta" id="hero-delta">—</div>
+          </div>
+          <div class="updated-stamp" id="updated-stamp">
+            <span class="dot"></span><span id="updated-text">—</span>
+          </div>
+        </div>
+        <div class="chart-container short"><canvas id="chart-evolution"></canvas></div>
+      </div>
+
+      <div class="card donut-card">
+        <div class="donut-card-head">
+          <div class="card-title">Rendimiento total</div>
+          <div class="donut-side-stat">
+            <div class="label">Invertido</div>
+            <div class="value" id="donut-side-invertido">—</div>
+          </div>
+        </div>
+        <div class="donut-wrapper">
+          <div class="chart-container donut-big"><canvas id="chart-rendimiento"></canvas></div>
+          <div class="donut-center">
+            <div class="donut-center-value" id="donut-rend-value">—</div>
+            <div class="donut-center-label">Rendimiento</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="kpis-row">
+      <div class="kpi-mini">
+        <div class="kpi-mini-label">Capital invertido</div>
+        <div class="kpi-mini-value" id="kpi-invertido">—</div>
+        <div class="kpi-mini-sub" id="kpi-invertido-sub">—</div>
+      </div>
+      <div class="kpi-mini">
+        <div class="kpi-mini-label">P&amp;L no realizado</div>
+        <div class="kpi-mini-value" id="kpi-pl-unrealized">—</div>
+        <div class="kpi-mini-sub" id="kpi-pl-unrealized-sub">—</div>
+      </div>
+      <div class="kpi-mini">
+        <div class="kpi-mini-label">P&amp;L realizado</div>
+        <div class="kpi-mini-value" id="kpi-pl-realized">—</div>
+        <div class="kpi-mini-sub" id="kpi-pl-realized-sub">—</div>
+      </div>
+      <div class="kpi-mini">
+        <div class="kpi-mini-label">Mejor activo</div>
+        <div class="kpi-mini-value" id="kpi-best">—</div>
+        <div class="kpi-mini-sub" id="kpi-best-sub">—</div>
+      </div>
+    </section>
+
+    <section class="card evo-card">
+      <div class="evo-head">
+        <div class="card-title">P&amp;L por activo</div>
+      </div>
+      <div class="chart-container tall"><canvas id="chart-pl-asset"></canvas></div>
+    </section>
+
+    <section class="two-col-row">
+      <div class="card">
+        <div class="card-title">Holdings</div>
+        <table class="holdings-table">
+          <thead>
+            <tr>
+              <th>Activo</th>
+              <th class="num">Unidades</th>
+              <th class="num">P. medio</th>
+              <th class="num">P. actual</th>
+              <th class="num">Valor</th>
+              <th class="num">P&amp;L</th>
+              <th class="col-bar">% Portfolio</th>
+            </tr>
+          </thead>
+          <tbody id="holdings-tbody"></tbody>
+        </table>
+      </div>
+
+      <div class="card donut-card">
+        <div class="card-title">Distribución del portfolio</div>
+        <div class="donut-wrapper">
+          <div class="chart-container donut-big"><canvas id="chart-allocation"></canvas></div>
+          <div class="donut-center">
+            <div class="donut-center-value" id="donut-alloc-count">—</div>
+            <div class="donut-center-label">Activos</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-title">Operaciones</div>
+      <table class="ops-table">
+        <thead>
+          <tr>
+            <th class="col-date">Fecha</th>
+            <th class="col-tipo">Tipo</th>
+            <th class="col-ticker">Activo</th>
+            <th class="col-units">Unidades</th>
+            <th class="col-price">Precio</th>
+            <th class="col-total">Total</th>
+          </tr>
+        </thead>
+        <tbody id="ops-tbody"></tbody>
+      </table>
+      <div class="pagination" id="ops-pagination" style="display: none;">
+        <button class="pag-btn" id="ops-prev" type="button">Anterior</button>
+        <span class="pag-info" id="ops-page-info">1 / 1</span>
+        <button class="pag-btn" id="ops-next" type="button">Siguiente</button>
+      </div>
+    </section>
+
+    <footer>
+      Generado el <span id="generated-at">—</span> · <span id="ops-count">0</span> operaciones · cotizaciones <span id="quotes-time">—</span>
+    </footer>
+  </main>
+
+  <script>
+    // ===== Data injected by build_investments.py =====
+    const OPERATIONS = __OPERATIONS_JSON__;
+    const QUOTES = __QUOTES_JSON__;
+    const QUOTES_UPDATED_AT = "__QUOTES_UPDATED__";
+    const GENERATED_AT = "__GENERATED_AT__";
+
+    // ===== Constants =====
+    const PALETTE = ['#4DD494', '#4DD0E1', '#B968D9', '#FF4D7E', '#FFB74D', '#7C4DFF', '#FF8A65', '#26C6DA', '#AB47BC', '#FFC107'];
+    const MUTED = '#7A8499';
+    const CARD_BORDER = '#1F2A3F';
+    const GRID_LINE = '#1A2333';
+    const INK = '#FFFFFF';
+    const MINT = '#4DD494';
+    const NEGATIVE = '#FF5252';
+    const ORANGE = '#FFB74D';
+
+    Chart.defaults.color = MUTED;
+    Chart.defaults.borderColor = GRID_LINE;
+    Chart.defaults.font.family = "'Inter', sans-serif";
+    Chart.defaults.font.size = 11;
+    Chart.defaults.plugins.legend.display = false;
+    Chart.defaults.plugins.tooltip.backgroundColor = '#0A0E1A';
+    Chart.defaults.plugins.tooltip.borderColor = CARD_BORDER;
+    Chart.defaults.plugins.tooltip.borderWidth = 1;
+    Chart.defaults.plugins.tooltip.titleColor = INK;
+    Chart.defaults.plugins.tooltip.bodyColor = INK;
+    Chart.defaults.plugins.tooltip.padding = 12;
+    Chart.defaults.plugins.tooltip.displayColors = false;
+    Chart.defaults.plugins.tooltip.titleFont = { family: "'Inter', sans-serif", size: 11, weight: '600' };
+    Chart.defaults.plugins.tooltip.bodyFont = { family: "'Inter', sans-serif", size: 13, weight: '500' };
+    Chart.defaults.plugins.tooltip.cornerRadius = 8;
+
+    // Hover-line guide plugin
+    const hoverGuide = {
+      id: 'hoverGuide',
+      afterDatasetsDraw(chart) {
+        const active = chart.tooltip?.getActiveElements?.() || [];
+        if (active.length === 0) return;
+        const x = active[0].element.x;
+        const ctx = chart.ctx;
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(x, chart.chartArea.top);
+        ctx.lineTo(x, chart.chartArea.bottom);
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = 'rgba(77, 212, 148, 0.45)';
+        ctx.setLineDash([4, 4]);
+        ctx.stroke();
+        ctx.restore();
+      },
+    };
+
+    // Formatters
+    const fmtEUR = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const fmtEURcompact = (v) => Math.abs(v) >= 1000 ? new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v) : fmtEUR.format(v);
+    const fmtPct = (v) => new Intl.NumberFormat('es-ES', { style: 'percent', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v);
+    const fmtNum = (v, dec = 4) => new Intl.NumberFormat('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: dec }).format(v);
+    const escapeHtml = (s) => { const d = document.createElement('div'); d.textContent = String(s); return d.innerHTML; };
+    const fmtFecha = (iso) => { const [y, m, d] = iso.split('-'); return `${d}/${m}/${y}`; };
+
+    // Hash for ticker color
+    const tickerColor = (ticker) => {
+      let h = 0;
+      for (let i = 0; i < ticker.length; i++) h = (h * 31 + ticker.charCodeAt(i)) | 0;
+      return PALETTE[Math.abs(h) % PALETTE.length];
+    };
+
+    // State
+    let selectedRange = 'all';
+    let opsPage = 0;
+    const OPS_PAGE_SIZE = 5;
+
+    // Chart instances
+    let chartEvolution, chartRendimiento, chartPlAsset, chartAllocation;
+
+    // ===== Aggregations =====
+    function computeHoldings(ops) {
+      // Returns array of {ticker, nombre, units, avgPrice, currentPrice, value, plUnrealized, plUnrealizedPct, invested}
+      const map = {};
+      for (const op of ops) {
+        const t = op.ticker;
+        if (!map[t]) map[t] = { ticker: t, nombre: op.nombre || t, units: 0, totalCost: 0, realized: 0 };
+        if (op.tipo === 'compra') {
+          map[t].units += op.unidades;
+          map[t].totalCost += op.unidades * op.precio + (op.comision || 0);
+          map[t].nombre = op.nombre || map[t].nombre;
+        } else if (op.tipo === 'venta') {
+          // Realized P&L = (sell_price - avg_cost) * units_sold
+          const avg = map[t].units > 0 ? map[t].totalCost / map[t].units : 0;
+          map[t].realized += (op.precio - avg) * op.unidades - (op.comision || 0);
+          map[t].totalCost -= avg * op.unidades; // reduce cost basis
+          map[t].units -= op.unidades;
+        }
+      }
+      const out = [];
+      for (const [ticker, h] of Object.entries(map)) {
+        const avgPrice = h.units > 0 ? h.totalCost / h.units : 0;
+        const q = QUOTES[ticker] || {};
+        const currentPrice = q.precio !== undefined ? q.precio : avgPrice;
+        const value = h.units * currentPrice;
+        const plUnrealized = value - h.totalCost;
+        const plUnrealizedPct = h.totalCost > 0 ? plUnrealized / h.totalCost : 0;
+        out.push({
+          ticker, nombre: h.nombre, units: h.units, avgPrice, currentPrice,
+          value, invested: h.totalCost, plUnrealized, plUnrealizedPct,
+          realized: h.realized,
+          dayChangePct: q.cambio_pct_1d || 0,
+        });
+      }
+      // Filter out fully sold positions for "current holdings" but keep realized
+      return { all: out, current: out.filter(x => x.units > 0.0000001) };
+    }
+
+    function computeKpis(ops) {
+      const { current, all } = computeHoldings(ops);
+      const invertido = current.reduce((s, h) => s + h.invested, 0);
+      const valorActual = current.reduce((s, h) => s + h.value, 0);
+      const plUnrealized = current.reduce((s, h) => s + h.plUnrealized, 0);
+      const plRealized = all.reduce((s, h) => s + h.realized, 0);
+      const plTotal = plUnrealized + plRealized;
+      const rendimiento = invertido > 0 ? plUnrealized / invertido : 0;
+      const best = current.length > 0 ? current.reduce((b, h) => h.plUnrealizedPct > b.plUnrealizedPct ? h : b) : null;
+      const worst = current.length > 0 ? current.reduce((w, h) => h.plUnrealizedPct < w.plUnrealizedPct ? h : w) : null;
+      return { invertido, valorActual, plUnrealized, plRealized, plTotal, rendimiento, best, worst, holdings: current, all };
+    }
+
+    function computeEvolutionTimeline(ops, range) {
+      // Reconstruct portfolio value over time using buy/sell points + current prices.
+      // For each day from first op to today, compute units held * current price (simplified).
+      // Better: at each operation date, recompute invested and "unrealized at avg" — but we lack
+      // historical prices. So we approximate: portfolio value at op-time = invested-to-date (cost basis),
+      // and current value = current market value. This produces a meaningful step-line
+      // climbing toward today's actual value.
+      if (ops.length === 0) return [];
+      const sorted = [...ops].sort((a, b) => a.fecha.localeCompare(b.fecha));
+      const today = new Date();
+      const yyyymmdd = (d) => d.toISOString().slice(0, 10);
+
+      const firstDate = new Date(sorted[0].fecha + 'T00:00:00');
+      let cutoff;
+      if (range === '1m') cutoff = new Date(today.getTime() - 30 * 86400000);
+      else if (range === '3m') cutoff = new Date(today.getTime() - 90 * 86400000);
+      else if (range === '6m') cutoff = new Date(today.getTime() - 180 * 86400000);
+      else if (range === '1y') cutoff = new Date(today.getTime() - 365 * 86400000);
+      else cutoff = firstDate;
+      if (cutoff < firstDate) cutoff = firstDate;
+
+      // Build daily series from cutoff to today
+      const points = [];
+      const dayMs = 86400000;
+      const start = new Date(cutoff.getFullYear(), cutoff.getMonth(), cutoff.getDate());
+      const end = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      const totalDays = Math.round((end - start) / dayMs);
+
+      // Track holdings unit count per ticker over time
+      let snapshot = {}; // ticker -> {units, costBasis}
+      let opIdx = 0;
+
+      for (let i = 0; i <= totalDays; i++) {
+        const d = new Date(start.getTime() + i * dayMs);
+        const dIso = yyyymmdd(d);
+        // Apply ops up to and including this date
+        while (opIdx < sorted.length && sorted[opIdx].fecha <= dIso) {
+          const op = sorted[opIdx];
+          if (!snapshot[op.ticker]) snapshot[op.ticker] = { units: 0, cost: 0 };
+          if (op.tipo === 'compra') {
+            snapshot[op.ticker].units += op.unidades;
+            snapshot[op.ticker].cost += op.unidades * op.precio + (op.comision || 0);
+          } else {
+            const avg = snapshot[op.ticker].units > 0 ? snapshot[op.ticker].cost / snapshot[op.ticker].units : 0;
+            snapshot[op.ticker].cost -= avg * op.unidades;
+            snapshot[op.ticker].units -= op.unidades;
+          }
+          opIdx++;
+        }
+
+        // Linear interpolation between cost basis and current value across the timeline
+        // (approximation since we lack historical prices)
+        const progress = totalDays > 0 ? i / totalDays : 1;
+        let value = 0;
+        for (const [t, s] of Object.entries(snapshot)) {
+          if (s.units <= 0) continue;
+          const q = QUOTES[t];
+          const current = q ? q.precio : 0;
+          const avgCost = s.cost / s.units;
+          const interp = avgCost + (current - avgCost) * progress;
+          value += s.units * interp;
+        }
+        points.push({ date: dIso, value });
+      }
+      return points;
+    }
+
+    // ===== Renderers =====
+    function renderHero(k) {
+      document.getElementById('hero-value').textContent = fmtEUR.format(k.valorActual);
+      const delta = document.getElementById('hero-delta');
+      const sign = k.plUnrealized >= 0 ? '+' : '';
+      delta.textContent = `${sign}${fmtEUR.format(k.plUnrealized)} (${sign}${fmtPct(k.rendimiento)})`;
+      delta.classList.toggle('positive', k.plUnrealized >= 0);
+      delta.classList.toggle('negative', k.plUnrealized < 0);
+      document.getElementById('donut-side-invertido').textContent = fmtEUR.format(k.invertido);
+      document.getElementById('updated-text').textContent = QUOTES_UPDATED_AT ? `Cotizaciones · ${QUOTES_UPDATED_AT}` : 'Cotizaciones · cargadas';
+    }
+    function renderKpis(k) {
+      const setVal = (id, value, sub, positive) => {
+        const el = document.getElementById(id);
+        el.textContent = value;
+        if (positive !== undefined) {
+          el.classList.toggle('positive', positive === true);
+          el.classList.toggle('negative', positive === false);
+        }
+        if (sub !== undefined) document.getElementById(id + '-sub').textContent = sub;
+      };
+      setVal('kpi-invertido', fmtEUR.format(k.invertido), `${k.holdings.length} activos`);
+      const sUn = k.plUnrealized >= 0 ? '+' : '';
+      setVal('kpi-pl-unrealized', `${sUn}${fmtEUR.format(k.plUnrealized)}`, `${sUn}${fmtPct(k.rendimiento)} sobre invertido`, k.plUnrealized >= 0);
+      const sRe = k.plRealized >= 0 ? '+' : '';
+      setVal('kpi-pl-realized', `${sRe}${fmtEUR.format(k.plRealized)}`, k.plRealized !== 0 ? 'Cerrado en ventas' : 'Sin operaciones cerradas', k.plRealized >= 0);
+      if (k.best) {
+        const sB = k.best.plUnrealizedPct >= 0 ? '+' : '';
+        setVal('kpi-best', k.best.ticker, `${sB}${fmtPct(k.best.plUnrealizedPct)} · ${fmtEUR.format(k.best.plUnrealized)}`, k.best.plUnrealizedPct >= 0);
+      } else {
+        setVal('kpi-best', '—', 'Sin posiciones abiertas');
+      }
+    }
+
+    function renderHoldings(holdings, totalValue) {
+      const tbody = document.getElementById('holdings-tbody');
+      if (holdings.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="empty">Sin holdings</td></tr>`;
+        return;
+      }
+      const sorted = [...holdings].sort((a, b) => b.value - a.value);
+      tbody.innerHTML = sorted.map(h => {
+        const allocPct = totalValue > 0 ? h.value / totalValue : 0;
+        const plClass = h.plUnrealized >= 0 ? 'positive' : 'negative';
+        const sign = h.plUnrealized >= 0 ? '+' : '';
+        return `
+          <tr>
+            <td>
+              <div class="ticker-cell">
+                <span class="ticker-avatar" style="background: ${tickerColor(h.ticker)};">${escapeHtml(h.ticker.slice(0, 4))}</span>
+                <div class="ticker-text">
+                  <span class="ticker-symbol">${escapeHtml(h.ticker)}</span>
+                  <span class="ticker-name">${escapeHtml(h.nombre)}</span>
+                </div>
+              </div>
+            </td>
+            <td class="num">${fmtNum(h.units, h.units < 1 ? 6 : 2)}</td>
+            <td class="num">${fmtEUR.format(h.avgPrice)}</td>
+            <td class="num">${fmtEUR.format(h.currentPrice)}</td>
+            <td class="num">${fmtEUR.format(h.value)}</td>
+            <td class="num pl ${plClass}">${sign}${fmtEUR.format(h.plUnrealized)}<br><span style="font-size: 11px; font-weight: 500;">${sign}${fmtPct(h.plUnrealizedPct)}</span></td>
+            <td class="col-bar">
+              <div class="alloc-bar"><div class="alloc-bar-fill" style="width: ${(allocPct * 100).toFixed(1)}%; background: ${tickerColor(h.ticker)};"></div></div>
+              <div style="font-size: 11px; color: var(--muted); margin-top: 4px; text-align: right;">${fmtPct(allocPct)}</div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function renderOps(ops) {
+      const tbody = document.getElementById('ops-tbody');
+      const pag = document.getElementById('ops-pagination');
+      const sorted = [...ops].sort((a, b) => b.fecha.localeCompare(a.fecha) || b.id - a.id);
+      if (sorted.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="empty">Sin operaciones</td></tr>`;
+        pag.style.display = 'none';
+        return;
+      }
+      const totalPages = Math.max(1, Math.ceil(sorted.length / OPS_PAGE_SIZE));
+      if (opsPage >= totalPages) opsPage = totalPages - 1;
+      if (opsPage < 0) opsPage = 0;
+      const slice = sorted.slice(opsPage * OPS_PAGE_SIZE, opsPage * OPS_PAGE_SIZE + OPS_PAGE_SIZE);
+
+      tbody.innerHTML = slice.map(op => {
+        const tipoClass = op.tipo === 'compra' ? 'compra' : 'venta';
+        const sign = op.tipo === 'compra' ? '−' : '+';
+        const total = op.unidades * op.precio + (op.tipo === 'compra' ? (op.comision || 0) : -(op.comision || 0));
+        return `
+          <tr>
+            <td class="col-date">${fmtFecha(op.fecha)}</td>
+            <td class="col-tipo ${tipoClass}">${op.tipo}</td>
+            <td class="col-ticker">${escapeHtml(op.ticker)}</td>
+            <td class="col-units">${fmtNum(op.unidades, op.unidades < 1 ? 6 : 2)}</td>
+            <td class="col-price">${fmtEUR.format(op.precio)}</td>
+            <td class="col-total ${tipoClass}">${sign}${fmtEUR.format(total)}</td>
+          </tr>
+        `;
+      }).join('');
+
+      if (sorted.length <= OPS_PAGE_SIZE) {
+        pag.style.display = 'none';
+      } else {
+        pag.style.display = 'flex';
+        document.getElementById('ops-page-info').textContent = `${opsPage + 1} / ${totalPages} · ${sorted.length} operaciones`;
+        document.getElementById('ops-prev').disabled = opsPage === 0;
+        document.getElementById('ops-next').disabled = opsPage >= totalPages - 1;
+      }
+    }
+
+    function renderEvolutionChart(timeline) {
+      if (chartEvolution) chartEvolution.destroy();
+      const ctx = document.getElementById('chart-evolution');
+      const c = ctx.getContext('2d');
+      const grad = c.createLinearGradient(0, 0, 0, 200);
+      grad.addColorStop(0, MINT + '55');
+      grad.addColorStop(1, MINT + '00');
+      const lastValue = timeline.length > 0 ? timeline[timeline.length - 1].value : 0;
+      const lineColor = lastValue >= 0 ? MINT : NEGATIVE;
+      chartEvolution = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: timeline.map(p => p.date),
+          datasets: [{
+            data: timeline.map(p => p.value),
+            borderColor: lineColor,
+            backgroundColor: grad,
+            tension: 0.3, fill: true, borderWidth: 2,
+            pointRadius: 0, pointHitRadius: 18, pointHoverRadius: 5,
+            pointHoverBackgroundColor: lineColor, pointHoverBorderColor: '#FFFFFF', pointHoverBorderWidth: 2,
+          }],
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false, axis: 'x' },
+          plugins: {
+            tooltip: {
+              callbacks: {
+                title: ctx => fmtFecha(ctx[0].label),
+                label: ctx => `Portfolio: ${fmtEUR.format(ctx.parsed.y)}`,
+              },
+            },
+          },
+          scales: {
+            x: { grid: { display: false }, ticks: { color: MUTED, maxTicksLimit: 6, font: { size: 9 }, callback: function(v) { const d = this.getLabelForValue(v); const [, m, dd] = d.split('-'); return `${dd}/${m}`; } } },
+            y: { display: false },
+          },
+        },
+        plugins: [hoverGuide],
+      });
+    }
+
+    function renderRendimientoDonut(rend) {
+      if (chartRendimiento) chartRendimiento.destroy();
+      const ctx = document.getElementById('chart-rendimiento');
+      const valueEl = document.getElementById('donut-rend-value');
+      const sign = rend >= 0 ? '+' : '';
+      valueEl.textContent = `${sign}${fmtPct(rend)}`;
+      valueEl.classList.toggle('negative', rend < 0);
+      // Donut: use absolute value capped at 1.0; remaining is gray
+      const filled = Math.min(Math.max(Math.abs(rend), 0), 1);
+      const remaining = 1 - filled;
+      const color = rend < 0 ? NEGATIVE : MINT;
+      chartRendimiento = new Chart(ctx, {
+        type: 'doughnut',
+        data: { datasets: [{ data: [filled, remaining], backgroundColor: [color, GRID_LINE], hoverBackgroundColor: [color + 'DD', '#243049'], borderWidth: 0, cutout: '78%', circumference: 360, rotation: -90 }] },
+        options: { responsive: true, maintainAspectRatio: false, cutout: '78%', plugins: { tooltip: { enabled: false } } },
+      });
+    }
+
+    function renderPlAssetChart(holdings) {
+      if (chartPlAsset) chartPlAsset.destroy();
+      const ctx = document.getElementById('chart-pl-asset');
+      const sorted = [...holdings].sort((a, b) => b.plUnrealized - a.plUnrealized);
+      const labels = sorted.map(h => h.ticker);
+      const data = sorted.map(h => h.plUnrealized);
+      const colors = data.map(v => v >= 0 ? MINT : NEGATIVE);
+      chartPlAsset = new Chart(ctx, {
+        type: 'bar',
+        data: { labels, datasets: [{ data, backgroundColor: colors, borderRadius: 6, borderSkipped: false, borderWidth: 0, barPercentage: 0.7, categoryPercentage: 0.8 }] },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          indexAxis: 'y',
+          plugins: {
+            tooltip: {
+              callbacks: {
+                title: ctx => sorted[ctx[0].dataIndex].nombre,
+                label: ctx => {
+                  const h = sorted[ctx.dataIndex];
+                  const sign = h.plUnrealized >= 0 ? '+' : '';
+                  return [
+                    `P&L: ${sign}${fmtEUR.format(h.plUnrealized)}`,
+                    `Rendimiento: ${sign}${fmtPct(h.plUnrealizedPct)}`,
+                    `Valor: ${fmtEUR.format(h.value)}`,
+                  ];
+                },
+              },
+            },
+          },
+          scales: {
+            x: { grid: { color: GRID_LINE, drawTicks: false }, border: { display: false }, ticks: { color: MUTED, callback: v => fmtEURcompact(v), font: { size: 10 } } },
+            y: { grid: { display: false }, ticks: { color: MUTED, font: { size: 11, weight: '600' } } },
+          },
+        },
+      });
+    }
+
+    function renderAllocationChart(holdings) {
+      if (chartAllocation) chartAllocation.destroy();
+      const ctx = document.getElementById('chart-allocation');
+      const sorted = [...holdings].sort((a, b) => b.value - a.value);
+      document.getElementById('donut-alloc-count').textContent = sorted.length;
+      if (sorted.length === 0) {
+        chartAllocation = new Chart(ctx, {
+          type: 'doughnut',
+          data: { labels: ['Sin holdings'], datasets: [{ data: [1], backgroundColor: [GRID_LINE], borderWidth: 0 }] },
+          options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { tooltip: { enabled: false } } },
+        });
+        return;
+      }
+      chartAllocation = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: sorted.map(h => h.ticker),
+          datasets: [{
+            data: sorted.map(h => h.value),
+            backgroundColor: sorted.map(h => tickerColor(h.ticker)),
+            borderColor: '#131A2A',
+            borderWidth: 2,
+            hoverOffset: 6,
+          }],
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false, cutout: '70%',
+          plugins: {
+            tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${fmtEUR.format(ctx.parsed)} (${fmtPct(ctx.parsed / sorted.reduce((s, h) => s + h.value, 0))})` } },
+          },
+        },
+      });
+    }
+
+    // ===== Boot =====
+    function rerender() {
+      const k = computeKpis(OPERATIONS);
+      const timeline = computeEvolutionTimeline(OPERATIONS, selectedRange);
+      document.getElementById('subtitle').textContent = `Vista: ${selectedRange === 'all' ? 'todo el histórico' : selectedRange.toUpperCase()}`;
+      document.getElementById('generated-at').textContent = GENERATED_AT;
+      document.getElementById('ops-count').textContent = OPERATIONS.length;
+      document.getElementById('quotes-time').textContent = QUOTES_UPDATED_AT || '—';
+      renderHero(k);
+      renderKpis(k);
+      renderEvolutionChart(timeline);
+      renderRendimientoDonut(k.rendimiento);
+      renderPlAssetChart(k.holdings);
+      renderHoldings(k.holdings, k.valorActual);
+      renderAllocationChart(k.holdings);
+      renderOps(OPERATIONS);
+    }
+
+    document.getElementById('range-pills').addEventListener('click', (e) => {
+      if (e.target.matches('.range-pill')) {
+        document.querySelectorAll('.range-pill').forEach(p => p.classList.remove('active'));
+        e.target.classList.add('active');
+        selectedRange = e.target.dataset.range;
+        rerender();
+      }
+    });
+    document.getElementById('ops-prev').addEventListener('click', () => { if (opsPage > 0) { opsPage--; rerender(); } });
+    document.getElementById('ops-next').addEventListener('click', () => { opsPage++; rerender(); });
+
+    rerender();
+  </script>
+</body>
+</html>

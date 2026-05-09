@@ -1,11 +1,17 @@
-"""Initialise the movements JSON store and the initial dashboard."""
+"""Initialise the movements and investments JSON stores plus rendered HTML pages."""
 from __future__ import annotations
 
 import argparse
 from pathlib import Path
 
-from scripts.movements_store import save
-from scripts.build_dashboard import render, DEFAULT_DATA_PATH, DEFAULT_OUTPUT_PATH
+from scripts.movements_store import save as save_movements
+from scripts.investments_store import save as save_investments
+from scripts.build_dashboard import render as render_dashboard, DEFAULT_DATA_PATH, DEFAULT_OUTPUT_PATH
+from scripts.build_investments import (
+    render as render_investments,
+    DEFAULT_INVESTMENTS_PATH,
+    DEFAULT_QUOTES_PATH,
+)
 
 
 def init_data(path: Path = DEFAULT_DATA_PATH, force: bool = False) -> int:
@@ -47,14 +53,30 @@ def init_data(path: Path = DEFAULT_DATA_PATH, force: bool = False) -> int:
         except (ImportError, KeyError):
             pass
 
-    save(path, {"version": 1, "movements": movements})
-    render()
+    save_movements(path, {"version": 1, "movements": movements})
+    render_dashboard()
+
+    # Initialise investments.json if it doesn't exist yet
+    if not DEFAULT_INVESTMENTS_PATH.exists():
+        save_investments(DEFAULT_INVESTMENTS_PATH, {"version": 1, "operations": []})
+
+    # Initialise quotes.json if it doesn't exist yet
+    if not DEFAULT_QUOTES_PATH.exists():
+        import json
+        DEFAULT_QUOTES_PATH.parent.mkdir(parents=True, exist_ok=True)
+        DEFAULT_QUOTES_PATH.write_text(
+            json.dumps({"version": 1, "updated_at": "", "quotes": {}}, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+    render_investments()
+
     return len(movements)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Inicializa data/movements.json y dashboard.html."
+        description="Inicializa data/movements.json, data/investments.json, dashboard.html e investments.html."
     )
     parser.add_argument(
         "--force",
@@ -70,6 +92,7 @@ def main() -> None:
     else:
         print("Creado: data/movements.json vacío.")
     print("Creado: dashboard.html. Abrilo con doble clic.")
+    print("Creado: investments.html. Abrilo con doble clic.")
 
 
 if __name__ == "__main__":

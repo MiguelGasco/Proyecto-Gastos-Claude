@@ -658,9 +658,9 @@
 
   <script>
     // ===== Data injected by build_dashboard.py =====
-    const MOVEMENTS = __MOVEMENTS_JSON__;
-    const CATEGORIES = __CATEGORIES_JSON__;
-    const GENERATED_AT = "__GENERATED_AT__";
+    const MOVEMENTS = [{"id": 1, "fecha": "2026-05-01", "tipo": "Ingreso", "categoria": "Nómina", "importe": 1402.0, "descripcion": "Nómina"}, {"id": 2, "fecha": "2026-05-05", "tipo": "Gasto", "categoria": "Compras", "importe": 110.0, "descripcion": "Monitor"}, {"id": 3, "fecha": "2026-05-09", "tipo": "Gasto", "categoria": "Compras", "importe": 65.44, "descripcion": "Zapatillas de deporte"}, {"id": 4, "fecha": "2026-05-09", "tipo": "Gasto", "categoria": "Compras", "importe": 18.0, "descripcion": "Pantalones cortos"}];
+    const CATEGORIES = {"Gasto": ["Alimentación", "Restauración", "Vivienda", "Suministros", "Transporte", "Salud", "Ocio", "Compras", "Suscripciones", "Otros"], "Ingreso": ["Nómina", "Extras", "Otros"]};
+    const GENERATED_AT = "10/05/2026 00:10";
 
     // ===== Constants =====
     const MONTHS_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
