@@ -256,3 +256,42 @@ def test_dashboard_has_five_charts(tmp_path: Path):
     assert types.count("LineChart") == 3
     assert types.count("BarChart") == 1
     assert len(types) == 5
+
+
+def test_dashboard_uses_arial_font(tmp_path: Path):
+    out = tmp_path / "gastos.xlsx"
+    create_workbook(out)
+    wb = openpyxl.load_workbook(out)
+    dash = wb["Dashboard"]
+    assert dash["A1"].font.name == "Arial"
+    assert dash["D1"].font.name == "Arial"
+
+
+def test_dashboard_kpi_values_are_green(tmp_path: Path):
+    out = tmp_path / "gastos.xlsx"
+    create_workbook(out)
+    wb = openpyxl.load_workbook(out)
+    dash = wb["Dashboard"]
+    # Green (cross-sheet link) for D1..D4
+    for cell in ("D1", "D2", "D3", "D4"):
+        color = (dash[cell].font.color.rgb or "").upper()
+        assert "008000" in color, f"{cell} not green: {color}"
+
+
+def test_month_selector_is_blue_input(tmp_path: Path):
+    out = tmp_path / "gastos.xlsx"
+    create_workbook(out)
+    wb = openpyxl.load_workbook(out)
+    dash = wb["Dashboard"]
+    color = (dash["B1"].font.color.rgb or "").upper()
+    assert "0000FF" in color, f"B1 not blue: {color}"
+
+
+def test_currency_format_has_parens_for_negatives(tmp_path: Path):
+    out = tmp_path / "gastos.xlsx"
+    create_workbook(out)
+    wb = openpyxl.load_workbook(out)
+    dash = wb["Dashboard"]
+    fmt = dash["D1"].number_format
+    assert "(" in fmt and ")" in fmt, f"D1 format missing parens: {fmt}"
+    assert '"-"' in fmt, f"D1 format missing zero literal: {fmt}"

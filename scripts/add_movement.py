@@ -7,8 +7,23 @@ from pathlib import Path
 from typing import Optional
 
 import openpyxl
+from openpyxl.styles import Font
 
 from scripts.categories import VALID_TYPES, is_valid
+
+# Skill-convention constants (must match init_workbook.py)
+_FMT_CURRENCY = '#,##0.00 "€";(#,##0.00 "€");"-"'
+_FMT_DATE     = "dd/mm/yyyy"
+_COLOR_BLACK  = "FF000000"
+_COLOR_BLUE   = "FF0000FF"
+
+
+def _font_black(cell) -> None:
+    cell.font = Font(name="Arial", size=11, color=_COLOR_BLACK)
+
+
+def _font_blue(cell) -> None:
+    cell.font = Font(name="Arial", size=11, color=_COLOR_BLUE)
 
 
 SHEET = "Movimientos"
@@ -60,11 +75,18 @@ def add_movement(
 
     last = _last_data_row(ws)
     target_row = last + 1 if last >= FIRST_DATA_ROW else FIRST_DATA_ROW
-    ws.cell(row=target_row, column=1, value=fecha).number_format = "dd/mm/yyyy"
-    ws.cell(row=target_row, column=2, value=tipo)
-    ws.cell(row=target_row, column=3, value=categoria)
-    ws.cell(row=target_row, column=4, value=float(importe)).number_format = '#,##0.00 "€"'
-    ws.cell(row=target_row, column=5, value=descripcion or "")
+    c1 = ws.cell(row=target_row, column=1, value=fecha)
+    c1.number_format = _FMT_DATE
+    _font_black(c1)
+    c2 = ws.cell(row=target_row, column=2, value=tipo)
+    _font_black(c2)
+    c3 = ws.cell(row=target_row, column=3, value=categoria)
+    _font_black(c3)
+    c4 = ws.cell(row=target_row, column=4, value=float(importe))
+    c4.number_format = _FMT_CURRENCY
+    _font_blue(c4)  # blue = hardcoded input (user-entered amount)
+    c5 = ws.cell(row=target_row, column=5, value=descripcion or "")
+    _font_black(c5)
 
     wb.save(path)
 
@@ -97,15 +119,22 @@ def edit_last(
     _validate(final_tipo, final_cat, float(final_imp))
 
     if fecha is not None:
-        ws.cell(row=last, column=1, value=fecha).number_format = "dd/mm/yyyy"
+        c = ws.cell(row=last, column=1, value=fecha)
+        c.number_format = _FMT_DATE
+        _font_black(c)
     if tipo is not None:
-        ws.cell(row=last, column=2, value=tipo)
+        c = ws.cell(row=last, column=2, value=tipo)
+        _font_black(c)
     if categoria is not None:
-        ws.cell(row=last, column=3, value=categoria)
+        c = ws.cell(row=last, column=3, value=categoria)
+        _font_black(c)
     if importe is not None:
-        ws.cell(row=last, column=4, value=float(importe)).number_format = '#,##0.00 "€"'
+        c = ws.cell(row=last, column=4, value=float(importe))
+        c.number_format = _FMT_CURRENCY
+        _font_blue(c)
     if descripcion is not None:
-        ws.cell(row=last, column=5, value=descripcion)
+        c = ws.cell(row=last, column=5, value=descripcion)
+        _font_black(c)
 
     wb.save(path)
 

@@ -15,10 +15,50 @@ SHEET_ORDER = ["Dashboard", "Movimientos", "Categorías", "_aux"]
 MOV_HEADERS = ["Fecha", "Tipo", "Categoría", "Importe", "Descripción"]
 MOV_LAST_DATA_ROW = 1000  # pre-size the table for data validations and table ref
 
+# --- Skill-convention number formats ---
+_FMT_CURRENCY = '#,##0.00 "€";(#,##0.00 "€");"-"'
+_FMT_PERCENT  = '0.0%;(0.0%);"-"'
+_FMT_DATE     = "dd/mm/yyyy"
+_FMT_DAY      = "dd/mm"
+
+# --- Skill-convention colors ---
+_COLOR_BLUE  = "FF0000FF"   # hardcoded inputs
+_COLOR_BLACK = "FF000000"   # formulas / calculations
+_COLOR_GREEN = "FF008000"   # cross-sheet links
+
+
+def _apply_font(cell, *, color: str = _COLOR_BLACK, size: int = 11, bold: bool = False) -> None:
+    """Apply Arial font with skill color conventions."""
+    cell.font = Font(name="Arial", size=size, bold=bold, color=color)
+
+
+def _blue_input(cell) -> None:
+    """Blue = hardcoded input the user will change."""
+    _apply_font(cell, color=_COLOR_BLUE)
+
+
+def _green_link(cell, *, size: int = 11, bold: bool = False) -> None:
+    """Green = cross-sheet link within same workbook."""
+    _apply_font(cell, color=_COLOR_GREEN, size=size, bold=bold)
+
+
+def _black_formula(cell, *, size: int = 11, bold: bool = False) -> None:
+    """Black = formula / calculation."""
+    _apply_font(cell, color=_COLOR_BLACK, size=size, bold=bold)
+
+
+def _currency(cell) -> None:
+    cell.number_format = _FMT_CURRENCY
+
+
+def _percent(cell) -> None:
+    cell.number_format = _FMT_PERCENT
+
 
 def _build_movimientos(ws) -> None:
     for col_idx, header in enumerate(MOV_HEADERS, start=1):
-        ws.cell(row=1, column=col_idx, value=header)
+        c = ws.cell(row=1, column=col_idx, value=header)
+        _black_formula(c, bold=True)
 
     last_col = get_column_letter(len(MOV_HEADERS))
     table = Table(
@@ -31,10 +71,10 @@ def _build_movimientos(ws) -> None:
     )
     ws.add_table(table)
 
-    # Number/date formats on data rows
+    # Number/date formats on data rows (font/color applied per row in add_movement.py)
     for row in range(2, MOV_LAST_DATA_ROW + 1):
-        ws.cell(row=row, column=1).number_format = "dd/mm/yyyy"
-        ws.cell(row=row, column=4).number_format = '#,##0.00 "€"'
+        ws.cell(row=row, column=1).number_format = _FMT_DATE
+        ws.cell(row=row, column=4).number_format = _FMT_CURRENCY
 
     # Sensible column widths
     widths = {"A": 12, "B": 10, "C": 16, "D": 14, "E": 40}
@@ -43,13 +83,16 @@ def _build_movimientos(ws) -> None:
 
 
 def _build_categorias(ws) -> None:
-    ws.cell(row=1, column=1, value="Tipo")
-    ws.cell(row=1, column=2, value="Categoría")
+    for col_idx, header in enumerate(["Tipo", "Categoría"], start=1):
+        c = ws.cell(row=1, column=col_idx, value=header)
+        _black_formula(c, bold=True)
     r = 2
     for tipo, cats in CATEGORIES.items():
         for cat in cats:
-            ws.cell(row=r, column=1, value=tipo)
-            ws.cell(row=r, column=2, value=cat)
+            c1 = ws.cell(row=r, column=1, value=tipo)
+            c2 = ws.cell(row=r, column=2, value=cat)
+            _black_formula(c1)
+            _black_formula(c2)
             r += 1
     ws.column_dimensions["A"].width = 12
     ws.column_dimensions["B"].width = 18
@@ -80,11 +123,18 @@ def _add_validations(ws_mov) -> None:
 
 def _build_aux(ws) -> None:
     # --- B1: selected month (driven by Dashboard!B1, which user picks) ---
+    _black_formula(ws["A1"])
     ws["A1"] = "Mes seleccionado"
-    ws["B1"] = "=Dashboard!B1"
-    ws["B1"].number_format = "dd/mm/yyyy"
+    c = ws["B1"]
+    c.value = "=Dashboard!B1"
+    c.number_format = _FMT_DATE
+    _black_formula(c)
+
+    _black_formula(ws["A2"])
     ws["A2"] = "Etiqueta"
-    ws["B2"] = '=TEXT(B1,"mm/yyyy")'
+    c2 = ws["B2"]
+    c2.value = '=TEXT(B1,"mm/yyyy")'
+    _black_formula(c2)
 
     # --- KPIs ---
     # Date range filter: >= B1 (first of month) and < EOMonth(B1)+1
@@ -92,32 +142,43 @@ def _build_aux(ws) -> None:
     month_end_excl = 'DATE(YEAR($B$1),MONTH($B$1)+1,1)'
 
     ws["C1"] = "Ingresos mes"
+    _black_formula(ws["C1"])
     ws["D1"] = (
         f'=SUMIFS(tblMov[Importe],tblMov[Tipo],"Ingreso",'
         f'tblMov[Fecha],">="&{month_start},'
         f'tblMov[Fecha],"<"&{month_end_excl})'
     )
+    _black_formula(ws["D1"])
     ws["C2"] = "Gastos mes"
+    _black_formula(ws["C2"])
     ws["D2"] = (
         f'=SUMIFS(tblMov[Importe],tblMov[Tipo],"Gasto",'
         f'tblMov[Fecha],">="&{month_start},'
         f'tblMov[Fecha],"<"&{month_end_excl})'
     )
+    _black_formula(ws["D2"])
     ws["C3"] = "Ahorro neto"
+    _black_formula(ws["C3"])
     ws["D3"] = "=D1-D2"
+    _black_formula(ws["D3"])
     ws["C4"] = "% ahorro"
+    _black_formula(ws["C4"])
     ws["D4"] = "=IFERROR(D3/D1,0)"
+    _black_formula(ws["D4"])
 
     for r in (1, 2, 3):
-        ws.cell(row=r, column=4).number_format = '#,##0.00 "€"'
-    ws["D4"].number_format = "0.0%"
+        ws.cell(row=r, column=4).number_format = _FMT_CURRENCY
+    ws["D4"].number_format = _FMT_PERCENT
 
     # --- Category-of-month block (F1:G11) ---
     ws["F1"] = "Categoría"
+    _black_formula(ws["F1"], bold=True)
     ws["G1"] = "Total mes"
+    _black_formula(ws["G1"], bold=True)
     for i, cat in enumerate(CATEGORIES["Gasto"], start=2):
-        ws.cell(row=i, column=6, value=cat)
-        ws.cell(
+        c_label = ws.cell(row=i, column=6, value=cat)
+        _black_formula(c_label)
+        c_sum = ws.cell(
             row=i,
             column=7,
             value=(
@@ -127,20 +188,20 @@ def _build_aux(ws) -> None:
                 f'tblMov[Fecha],"<"&{month_end_excl})'
             ),
         )
-        ws.cell(row=i, column=7).number_format = '#,##0.00 "€"'
+        _black_formula(c_sum)
+        c_sum.number_format = _FMT_CURRENCY
 
     # --- Monthly evolution block (I1:M13), fixed Jan-Dec of YEAR($B$1) ---
-    ws["I1"] = "Mes"
-    ws["J1"] = "Ingresos"
-    ws["K1"] = "Gastos"
-    ws["L1"] = "Ahorro"
-    ws["M1"] = "% Ahorro"
+    for hdr, col in [("Mes", 9), ("Ingresos", 10), ("Gastos", 11), ("Ahorro", 12), ("% Ahorro", 13)]:
+        c = ws.cell(row=1, column=col, value=hdr)
+        _black_formula(c, bold=True)
     for month_num in range(1, 13):
         r = 1 + month_num  # row 2 = January, row 13 = December
-        ws.cell(row=r, column=9, value=f'=TEXT(DATE(YEAR($B$1),{month_num},1),"mm/yyyy")')
         start_ref = f'DATE(YEAR($B$1),{month_num},1)'
         end_ref = f'DATE(YEAR($B$1),{month_num + 1},1)'
-        ws.cell(
+        c9 = ws.cell(row=r, column=9, value=f'=TEXT(DATE(YEAR($B$1),{month_num},1),"mm/yyyy")')
+        _black_formula(c9)
+        c10 = ws.cell(
             row=r,
             column=10,
             value=(
@@ -149,7 +210,8 @@ def _build_aux(ws) -> None:
                 f'tblMov[Fecha],"<"&{end_ref})'
             ),
         )
-        ws.cell(
+        _black_formula(c10)
+        c11 = ws.cell(
             row=r,
             column=11,
             value=(
@@ -158,16 +220,19 @@ def _build_aux(ws) -> None:
                 f'tblMov[Fecha],"<"&{end_ref})'
             ),
         )
-        ws.cell(row=r, column=12, value=f"=J{r}-K{r}")
-        ws.cell(row=r, column=13, value=f"=IFERROR(L{r}/J{r},0)")
-        for c in (10, 11, 12):
-            ws.cell(row=r, column=c).number_format = '#,##0.00 "€"'
-        ws.cell(row=r, column=13).number_format = "0.0%"
+        _black_formula(c11)
+        c12 = ws.cell(row=r, column=12, value=f"=J{r}-K{r}")
+        _black_formula(c12)
+        c13 = ws.cell(row=r, column=13, value=f"=IFERROR(L{r}/J{r},0)")
+        _black_formula(c13)
+        for c in (c10, c11, c12):
+            c.number_format = _FMT_CURRENCY
+        c13.number_format = _FMT_PERCENT
 
     # --- Top-5 block (N1:P6). Uses AGGREGATE(14,6,...) for Excel 2010+ compatibility ---
-    ws["N1"] = "Fecha"
-    ws["O1"] = "Descripción"
-    ws["P1"] = "Importe"
+    for hdr, col in [("Fecha", 14), ("Descripción", 15), ("Importe", 16)]:
+        c = ws.cell(row=1, column=col, value=hdr)
+        _black_formula(c, bold=True)
     mask_expr = (
         '(Movimientos!$B$2:$B$1000="Gasto")'
         '*(Movimientos!$A$2:$A$1000>=$B$1)'
@@ -176,8 +241,7 @@ def _build_aux(ws) -> None:
     for i in range(5):
         r = 2 + i
         rank = i + 1
-        # Importe (P): r-th largest gasto in selected month, errors-ignored via /mask
-        ws.cell(
+        cp = ws.cell(
             row=r,
             column=16,
             value=(
@@ -185,8 +249,8 @@ def _build_aux(ws) -> None:
                 f'Movimientos!$D$2:$D$1000/({mask_expr}),{rank}),"")'
             ),
         )
-        # Fecha (N): date of the row whose Importe matches P{r}
-        ws.cell(
+        _black_formula(cp)
+        cn = ws.cell(
             row=r,
             column=14,
             value=(
@@ -196,8 +260,8 @@ def _build_aux(ws) -> None:
                 f'*ROW(Movimientos!$A$2:$A$1000))-1),"")'
             ),
         )
-        # Descripción (O): description of the row whose Importe matches P{r}
-        ws.cell(
+        _black_formula(cn)
+        co = ws.cell(
             row=r,
             column=15,
             value=(
@@ -207,17 +271,23 @@ def _build_aux(ws) -> None:
                 f'*ROW(Movimientos!$A$2:$A$1000))-1),"")'
             ),
         )
-        ws.cell(row=r, column=14).number_format = "dd/mm/yyyy"
-        ws.cell(row=r, column=16).number_format = '#,##0.00 "€"'
+        _black_formula(co)
+        cn.number_format = _FMT_DATE
+        cp.number_format = _FMT_CURRENCY
 
     # --- Cumulative daily expenses block (R1:S32) ---
-    ws["R1"] = "Día"
-    ws["S1"] = "Acumulado"
+    c = ws["R1"]
+    c.value = "Día"
+    _black_formula(c, bold=True)
+    c = ws["S1"]
+    c.value = "Acumulado"
+    _black_formula(c, bold=True)
     for i in range(31):
         r = 2 + i
-        ws.cell(row=r, column=18, value=f"=$B$1+{i}")
-        ws.cell(row=r, column=18).number_format = "dd/mm"
-        ws.cell(
+        cr = ws.cell(row=r, column=18, value=f"=$B$1+{i}")
+        _black_formula(cr)
+        cr.number_format = _FMT_DAY
+        cs = ws.cell(
             row=r,
             column=19,
             value=(
@@ -227,16 +297,18 @@ def _build_aux(ws) -> None:
                 f'tblMov[Fecha],"<="&R{r}))'
             ),
         )
-        ws.cell(row=r, column=19).number_format = '#,##0.00 "€"'
+        _black_formula(cs)
+        cs.number_format = _FMT_CURRENCY
 
     # --- Category comparison: this month vs previous month (U1:W11) ---
-    ws["U1"] = "Categoría"
-    ws["V1"] = "Este mes"
-    ws["W1"] = "Mes anterior"
+    for hdr, col in [("Categoría", 21), ("Este mes", 22), ("Mes anterior", 23)]:
+        c = ws.cell(row=1, column=col, value=hdr)
+        _black_formula(c, bold=True)
     prev_start = 'DATE(YEAR($B$1),MONTH($B$1)-1,1)'
     for i, cat in enumerate(CATEGORIES["Gasto"], start=2):
-        ws.cell(row=i, column=21, value=cat)
-        ws.cell(
+        cu = ws.cell(row=i, column=21, value=cat)
+        _black_formula(cu)
+        cv = ws.cell(
             row=i,
             column=22,
             value=(
@@ -246,7 +318,8 @@ def _build_aux(ws) -> None:
                 f'tblMov[Fecha],"<"&{month_end_excl})'
             ),
         )
-        ws.cell(
+        _black_formula(cv)
+        cw = ws.cell(
             row=i,
             column=23,
             value=(
@@ -256,8 +329,9 @@ def _build_aux(ws) -> None:
                 f'tblMov[Fecha],"<"&{month_start})'
             ),
         )
-        ws.cell(row=i, column=22).number_format = '#,##0.00 "€"'
-        ws.cell(row=i, column=23).number_format = '#,##0.00 "€"'
+        _black_formula(cw)
+        cv.number_format = _FMT_CURRENCY
+        cw.number_format = _FMT_CURRENCY
 
     ws.column_dimensions["A"].width = 18
     ws.column_dimensions["I"].width = 12
@@ -267,37 +341,43 @@ def _build_aux(ws) -> None:
 def _build_dashboard(ws) -> None:
     # --- Month selector ---
     ws["A1"] = "Mes seleccionado:"
-    ws["A1"].font = Font(bold=True)
-    ws["B1"] = "=DATE(YEAR(TODAY()),MONTH(TODAY()),1)"
-    ws["B1"].number_format = "dd/mm/yyyy"
-    ws["B1"].fill = PatternFill("solid", fgColor="FFF2CC")  # soft yellow = editable
+    _black_formula(ws["A1"], bold=True)
+    b1 = ws["B1"]
+    b1.value = "=DATE(YEAR(TODAY()),MONTH(TODAY()),1)"
+    b1.number_format = _FMT_DATE
+    b1.fill = PatternFill("solid", fgColor="FFF2CC")  # soft yellow = key assumption
+    _blue_input(b1)  # blue = hardcoded input the user will change
 
     # --- KPI labels and values ---
     kpi_rows = [
-        ("Ingresos:", "=_aux!D1", '#,##0.00 "€"'),
-        ("Gastos:", "=_aux!D2", '#,##0.00 "€"'),
-        ("Ahorro neto:", "=_aux!D3", '#,##0.00 "€"'),
-        ("% Ahorro:", "=_aux!D4", "0.0%"),
+        ("Ingresos:", "=_aux!D1", _FMT_CURRENCY),
+        ("Gastos:", "=_aux!D2", _FMT_CURRENCY),
+        ("Ahorro neto:", "=_aux!D3", _FMT_CURRENCY),
+        ("% Ahorro:", "=_aux!D4", _FMT_PERCENT),
     ]
     for i, (label, formula, fmt) in enumerate(kpi_rows, start=1):
-        ws.cell(row=i, column=3, value=label).font = Font(bold=True)
+        lbl = ws.cell(row=i, column=3, value=label)
+        _black_formula(lbl, bold=True)
         c = ws.cell(row=i, column=4, value=formula)
         c.number_format = fmt
-        c.font = Font(size=14, bold=True)
+        _green_link(c, size=14, bold=True)
 
     # --- Top-5 section ---
     ws["A6"] = "TOP 5 GASTOS DEL MES"
-    ws["A6"].font = Font(bold=True, size=12)
-    ws["A7"] = "Fecha"
-    ws["B7"] = "Descripción"
-    ws["C7"] = "Importe"
-    for cell in (ws["A7"], ws["B7"], ws["C7"]):
-        cell.font = Font(bold=True)
+    _black_formula(ws["A6"], size=12, bold=True)
+    for hdr, col in [("Fecha", 1), ("Descripción", 2), ("Importe", 3)]:
+        c = ws.cell(row=7, column=col, value=hdr)
+        _black_formula(c, bold=True)
     for i in range(5):
         r = 8 + i
-        ws.cell(row=r, column=1, value=f"=_aux!N{2 + i}").number_format = "dd/mm/yyyy"
-        ws.cell(row=r, column=2, value=f"=_aux!O{2 + i}")
-        ws.cell(row=r, column=3, value=f"=_aux!P{2 + i}").number_format = '#,##0.00 "€"'
+        ca = ws.cell(row=r, column=1, value=f"=_aux!N{2 + i}")
+        ca.number_format = _FMT_DATE
+        _green_link(ca)
+        cb = ws.cell(row=r, column=2, value=f"=_aux!O{2 + i}")
+        _green_link(cb)
+        cc = ws.cell(row=r, column=3, value=f"=_aux!P{2 + i}")
+        cc.number_format = _FMT_CURRENCY
+        _green_link(cc)
 
     # Column widths
     widths = {"A": 18, "B": 30, "C": 16, "D": 18}
