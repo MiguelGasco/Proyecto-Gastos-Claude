@@ -38,7 +38,8 @@ def main() -> None:
 
     if args.delete_last_flag:
         store_delete_last(path)
-        render(data_path=path)
+        if path == DEFAULT_DATA_PATH:
+            render()
         print("OK: última fila borrada. Refresca dashboard.html (F5).")
         return
 
@@ -51,7 +52,8 @@ def main() -> None:
             importe=args.importe,
             descripcion=args.descripcion,
         )
-        render(data_path=path)
+        if path == DEFAULT_DATA_PATH:
+            render()
         print("OK: última fila actualizada. Refresca dashboard.html (F5).")
         return
 
