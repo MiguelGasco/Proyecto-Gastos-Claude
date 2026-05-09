@@ -179,17 +179,16 @@ def test_aux_sheet_is_hidden(tmp_path: Path):
     assert wb.active.title == "Dashboard"
 
 
-def test_aux_evolution_is_oldest_to_newest(tmp_path: Path):
+def test_aux_evolution_is_calendar_year(tmp_path: Path):
     out = tmp_path / "gastos.xlsx"
     create_workbook(out)
     wb = openpyxl.load_workbook(out)
     aux = wb["_aux"]
-    # Row 2 must reference 11 months back; row 13 must reference current month.
+    # Row 2 = January of YEAR($B$1); row 13 = December of YEAR($B$1)
     row2 = aux.cell(row=2, column=9).value or ""
     row13 = aux.cell(row=13, column=9).value or ""
-    assert "MONTH($B$1)-11" in row2, f"expected oldest at row 2: {row2}"
-    # Selected month formula uses the bare $B$1 path (months_back = 0)
-    assert "MONTH($B$1)-0" in row13 or "MONTH($B$1))" in row13.replace(" ", "")
+    assert "DATE(YEAR($B$1),1,1)" in row2, f"row 2 should be January: {row2}"
+    assert "DATE(YEAR($B$1),12,1)" in row13, f"row 13 should be December: {row13}"
 
 
 def test_aux_evolution_has_pct_ahorro_column(tmp_path: Path):
@@ -203,13 +202,15 @@ def test_aux_evolution_has_pct_ahorro_column(tmp_path: Path):
         assert "IFERROR" in f.upper() and f"L{r}" in f and f"J{r}" in f
 
 
-def test_aux_top5_uses_filter_sort(tmp_path: Path):
+def test_aux_top5_uses_aggregate(tmp_path: Path):
     out = tmp_path / "gastos.xlsx"
     create_workbook(out)
     wb = openpyxl.load_workbook(out)
     aux = wb["_aux"]
-    f = (aux["P2"].value or "").upper()
-    assert "FILTER" in f and "SORT" in f, f"top-5 not using FILTER+SORT: {f}"
+    p2 = (aux["P2"].value or "").upper()
+    n2 = (aux["N2"].value or "").upper()
+    assert "AGGREGATE" in p2, f"P2 should use AGGREGATE: {p2}"
+    assert "SUMPRODUCT" in n2, f"N2 should use SUMPRODUCT: {n2}"
 
 
 def test_aux_cumulative_daily_block(tmp_path: Path):

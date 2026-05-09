@@ -129,23 +129,17 @@ def _build_aux(ws) -> None:
         )
         ws.cell(row=i, column=7).number_format = '#,##0.00 "€"'
 
-    # --- Monthly evolution block (I1:M13), rolling 12 months oldest→newest ---
+    # --- Monthly evolution block (I1:M13), fixed Jan-Dec of YEAR($B$1) ---
     ws["I1"] = "Mes"
     ws["J1"] = "Ingresos"
     ws["K1"] = "Gastos"
     ws["L1"] = "Ahorro"
     ws["M1"] = "% Ahorro"
-    for offset in range(12):
-        r = 2 + offset
-        # offset 0 = oldest (11 months back), offset 11 = current (selected) month
-        months_back = 11 - offset
-        ws.cell(
-            row=r,
-            column=9,
-            value=f'=TEXT(DATE(YEAR($B$1),MONTH($B$1)-{months_back},1),"mm/yyyy")',
-        )
-        start_ref = f'DATE(YEAR($B$1),MONTH($B$1)-{months_back},1)'
-        end_ref = f'DATE(YEAR($B$1),MONTH($B$1)-{months_back}+1,1)'
+    for month_num in range(1, 13):
+        r = 1 + month_num  # row 2 = January, row 13 = December
+        ws.cell(row=r, column=9, value=f'=TEXT(DATE(YEAR($B$1),{month_num},1),"mm/yyyy")')
+        start_ref = f'DATE(YEAR($B$1),{month_num},1)'
+        end_ref = f'DATE(YEAR($B$1),{month_num + 1},1)'
         ws.cell(
             row=r,
             column=10,
@@ -170,37 +164,48 @@ def _build_aux(ws) -> None:
             ws.cell(row=r, column=c).number_format = '#,##0.00 "€"'
         ws.cell(row=r, column=13).number_format = "0.0%"
 
-    # --- Top-5 block (N1:P6). Uses FILTER+SORT+INDEX for correct ranking ---
+    # --- Top-5 block (N1:P6). Uses AGGREGATE(14,6,...) for Excel 2010+ compatibility ---
     ws["N1"] = "Fecha"
     ws["O1"] = "Descripción"
     ws["P1"] = "Importe"
-    filter_base = (
-        'FILTER(Movimientos!$A$2:$E$1000,'
+    mask_expr = (
         '(Movimientos!$B$2:$B$1000="Gasto")'
         '*(Movimientos!$A$2:$A$1000>=$B$1)'
-        f'*(Movimientos!$A$2:$A$1000<{month_end_excl}))'
+        f'*(Movimientos!$A$2:$A$1000<{month_end_excl})'
     )
-    sorted_expr = f'SORT({filter_base},4,-1)'
     for i in range(5):
         r = 2 + i
         rank = i + 1
-        # Fecha (N): column 1 of sorted result
-        ws.cell(
-            row=r,
-            column=14,
-            value=f'=IFERROR(INDEX({sorted_expr},{rank},1),"")',
-        )
-        # Descripción (O): column 5 of sorted result
-        ws.cell(
-            row=r,
-            column=15,
-            value=f'=IFERROR(INDEX({sorted_expr},{rank},5),"")',
-        )
-        # Importe (P): column 4 of sorted result
+        # Importe (P): r-th largest gasto in selected month, errors-ignored via /mask
         ws.cell(
             row=r,
             column=16,
-            value=f'=IFERROR(INDEX({sorted_expr},{rank},4),"")',
+            value=(
+                f'=IFERROR(AGGREGATE(14,6,'
+                f'Movimientos!$D$2:$D$1000/({mask_expr}),{rank}),"")'
+            ),
+        )
+        # Fecha (N): date of the row whose Importe matches P{r}
+        ws.cell(
+            row=r,
+            column=14,
+            value=(
+                f'=IFERROR(INDEX(Movimientos!$A$2:$A$1000,'
+                f'SUMPRODUCT((Movimientos!$D$2:$D$1000=P{r})'
+                f'*({mask_expr})'
+                f'*ROW(Movimientos!$A$2:$A$1000))-1),"")'
+            ),
+        )
+        # Descripción (O): description of the row whose Importe matches P{r}
+        ws.cell(
+            row=r,
+            column=15,
+            value=(
+                f'=IFERROR(INDEX(Movimientos!$E$2:$E$1000,'
+                f'SUMPRODUCT((Movimientos!$D$2:$D$1000=P{r})'
+                f'*({mask_expr})'
+                f'*ROW(Movimientos!$A$2:$A$1000))-1),"")'
+            ),
         )
         ws.cell(row=r, column=14).number_format = "dd/mm/yyyy"
         ws.cell(row=r, column=16).number_format = '#,##0.00 "€"'
