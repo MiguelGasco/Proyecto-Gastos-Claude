@@ -5,6 +5,7 @@ import openpyxl
 from openpyxl.worksheet.table import Table, TableStyleInfo
 from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.utils import get_column_letter
+from openpyxl.styles import Font, Alignment, PatternFill
 from scripts.categories import CATEGORIES, VALID_TYPES
 
 
@@ -207,6 +208,47 @@ def _build_aux(ws) -> None:
     ws.column_dimensions["O"].width = 30
 
 
+def _build_dashboard(ws) -> None:
+    # --- Month selector ---
+    ws["A1"] = "Mes seleccionado:"
+    ws["A1"].font = Font(bold=True)
+    ws["B1"] = "=DATE(YEAR(TODAY()),MONTH(TODAY()),1)"
+    ws["B1"].number_format = "dd/mm/yyyy"
+    ws["B1"].fill = PatternFill("solid", fgColor="FFF2CC")  # soft yellow = editable
+
+    # --- KPI labels and values ---
+    kpi_rows = [
+        ("Ingresos:", "=_aux!D1", '#,##0.00 "€"'),
+        ("Gastos:", "=_aux!D2", '#,##0.00 "€"'),
+        ("Ahorro neto:", "=_aux!D3", '#,##0.00 "€"'),
+        ("% Ahorro:", "=_aux!D4", "0.0%"),
+    ]
+    for i, (label, formula, fmt) in enumerate(kpi_rows, start=1):
+        ws.cell(row=i, column=3, value=label).font = Font(bold=True)
+        c = ws.cell(row=i, column=4, value=formula)
+        c.number_format = fmt
+        c.font = Font(size=14, bold=True)
+
+    # --- Top-5 section ---
+    ws["A6"] = "TOP 5 GASTOS DEL MES"
+    ws["A6"].font = Font(bold=True, size=12)
+    ws["A7"] = "Fecha"
+    ws["B7"] = "Descripción"
+    ws["C7"] = "Importe"
+    for cell in (ws["A7"], ws["B7"], ws["C7"]):
+        cell.font = Font(bold=True)
+    for i in range(5):
+        r = 8 + i
+        ws.cell(row=r, column=1, value=f"=_aux!N{2 + i}").number_format = "dd/mm/yyyy"
+        ws.cell(row=r, column=2, value=f"=_aux!O{2 + i}")
+        ws.cell(row=r, column=3, value=f"=_aux!P{2 + i}").number_format = '#,##0.00 "€"'
+
+    # Column widths
+    widths = {"A": 18, "B": 30, "C": 16, "D": 18}
+    for col, w in widths.items():
+        ws.column_dimensions[col].width = w
+
+
 def create_workbook(path: Path) -> None:
     path = Path(path)
     if path.exists():
@@ -225,6 +267,7 @@ def create_workbook(path: Path) -> None:
     _build_categorias(wb["Categorías"])
     _add_validations(wb["Movimientos"])
     _build_aux(wb["_aux"])
+    _build_dashboard(wb["Dashboard"])
 
     wb.save(path)
 

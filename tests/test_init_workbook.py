@@ -113,3 +113,44 @@ def test_aux_monthly_evolution_block_has_twelve_rows(tmp_path: Path):
     assert all(m for m in months), f"Missing month labels: {months}"
     assert all("SUMIFS" in (s or "").upper() for s in ingresos)
     assert all("SUMIFS" in (s or "").upper() for s in gastos)
+
+
+def test_dashboard_has_month_selector_default_to_today(tmp_path: Path):
+    out = tmp_path / "gastos.xlsx"
+    create_workbook(out)
+
+    wb = openpyxl.load_workbook(out)
+    dash = wb["Dashboard"]
+
+    assert dash["A1"].value == "Mes seleccionado:"
+    formula = (dash["B1"].value or "").upper()
+    assert "FECHA" in formula or "DATE" in formula
+    assert "HOY" in formula or "TODAY" in formula
+
+
+def test_dashboard_kpis_link_to_aux(tmp_path: Path):
+    out = tmp_path / "gastos.xlsx"
+    create_workbook(out)
+
+    wb = openpyxl.load_workbook(out)
+    dash = wb["Dashboard"]
+
+    assert dash["D1"].value == "=_aux!D1"
+    assert dash["D2"].value == "=_aux!D2"
+    assert dash["D3"].value == "=_aux!D3"
+    assert dash["D4"].value == "=_aux!D4"
+
+
+def test_dashboard_top5_links_to_aux(tmp_path: Path):
+    out = tmp_path / "gastos.xlsx"
+    create_workbook(out)
+
+    wb = openpyxl.load_workbook(out)
+    dash = wb["Dashboard"]
+
+    # 5 rows starting at row 8, three columns A/B/C linked to _aux!N/O/P 2..6
+    for i in range(5):
+        r = 8 + i
+        assert dash.cell(row=r, column=1).value == f"=_aux!N{2 + i}"
+        assert dash.cell(row=r, column=2).value == f"=_aux!O{2 + i}"
+        assert dash.cell(row=r, column=3).value == f"=_aux!P{2 + i}"
