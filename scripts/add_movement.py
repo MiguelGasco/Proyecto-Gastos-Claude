@@ -78,7 +78,8 @@ def main() -> None:
         importe=args.importe,
         descripcion=args.descripcion or "",
     )
-    render(data_path=path)
+    if path == DEFAULT_DATA_PATH:
+        render()
     print(f"OK: movimiento #{new_id} añadido. Refresca dashboard.html (F5).")
 
 
