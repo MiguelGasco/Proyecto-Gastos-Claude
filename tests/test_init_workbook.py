@@ -67,8 +67,8 @@ def test_aux_has_selected_month_and_kpi_formulas(tmp_path: Path):
     wb = openpyxl.load_workbook(out)
     aux = wb["_aux"]
 
-    # Selected month is driven from Dashboard
-    assert aux["B1"].value == "=Dashboard!B1"
+    # v2.0: Selected month is driven from Dashboard!P1
+    assert aux["B1"].value == "=Dashboard!P1"
 
     # KPIs use SUMIFS over tblMov filtered by month
     ingresos = aux["D1"].value or ""
@@ -106,7 +106,7 @@ def test_aux_monthly_evolution_block_has_twelve_rows(tmp_path: Path):
     wb = openpyxl.load_workbook(out)
     aux = wb["_aux"]
 
-    # Row 2 is the most recent month, row 13 is 11 months earlier (rolling window)
+    # Row 2 is January, row 13 is December
     months = [aux.cell(row=r, column=9).value for r in range(2, 14)]
     ingresos = [aux.cell(row=r, column=10).value for r in range(2, 14)]
     gastos = [aux.cell(row=r, column=11).value for r in range(2, 14)]
@@ -116,44 +116,50 @@ def test_aux_monthly_evolution_block_has_twelve_rows(tmp_path: Path):
 
 
 def test_dashboard_has_month_selector_default_to_today(tmp_path: Path):
+    """v2.0: month selector is at P1 (not B1)."""
     out = tmp_path / "gastos.xlsx"
     create_workbook(out)
 
     wb = openpyxl.load_workbook(out)
     dash = wb["Dashboard"]
 
-    assert dash["A1"].value == "Mes seleccionado:"
-    formula = (dash["B1"].value or "").upper()
+    formula = (dash["P1"].value or "").upper()
     assert "FECHA" in formula or "DATE" in formula
     assert "HOY" in formula or "TODAY" in formula
 
 
-def test_dashboard_kpis_link_to_aux(tmp_path: Path):
+def test_dashboard_kpis_use_named_ranges(tmp_path: Path):
+    """v2.0: KPI value cells use named range references."""
     out = tmp_path / "gastos.xlsx"
     create_workbook(out)
 
     wb = openpyxl.load_workbook(out)
     dash = wb["Dashboard"]
 
-    assert dash["D1"].value == "=_aux!D1"
-    assert dash["D2"].value == "=_aux!D2"
-    assert dash["D3"].value == "=_aux!D3"
-    assert dash["D4"].value == "=_aux!D4"
+    assert dash["B7"].value == "=KPI_Ingresos"
+    assert dash["G7"].value == "=KPI_Gastos"
+    assert dash["L7"].value == "=KPI_Ahorro"
+    assert dash["Q7"].value == "=KPI_PctAhorro"
 
 
 def test_dashboard_top5_links_to_aux(tmp_path: Path):
+    """v2.0: Top-5 is at K14:S18."""
     out = tmp_path / "gastos.xlsx"
     create_workbook(out)
 
     wb = openpyxl.load_workbook(out)
     dash = wb["Dashboard"]
 
-    # 5 rows starting at row 8, three columns A/B/C linked to _aux!N/O/P 2..6
+    # 5 rows starting at row 14: K=date, M=description, S=amount
     for i in range(5):
-        r = 8 + i
-        assert dash.cell(row=r, column=1).value == f"=_aux!N{2 + i}"
-        assert dash.cell(row=r, column=2).value == f"=_aux!O{2 + i}"
-        assert dash.cell(row=r, column=3).value == f"=_aux!P{2 + i}"
+        data_row = 14 + i
+        aux_row = 2 + i
+        assert dash.cell(row=data_row, column=11).value == f"=_aux!N{aux_row}", \
+            f"K{data_row} should be =_aux!N{aux_row}"
+        assert dash.cell(row=data_row, column=13).value == f"=_aux!O{aux_row}", \
+            f"M{data_row} should be =_aux!O{aux_row}"
+        assert dash.cell(row=data_row, column=19).value == f"=_aux!P{aux_row}", \
+            f"S{data_row} should be =_aux!P{aux_row}"
 
 
 def test_dashboard_has_pie_and_line_charts(tmp_path: Path):
@@ -163,7 +169,6 @@ def test_dashboard_has_pie_and_line_charts(tmp_path: Path):
     wb = openpyxl.load_workbook(out)
     dash = wb["Dashboard"]
 
-    # openpyxl exposes charts via ws._charts
     chart_types = {type(c).__name__ for c in dash._charts}
     assert "PieChart" in chart_types, f"got {chart_types}"
     assert "LineChart" in chart_types, f"got {chart_types}"
@@ -202,15 +207,37 @@ def test_aux_evolution_has_pct_ahorro_column(tmp_path: Path):
         assert "IFERROR" in f.upper() and f"L{r}" in f and f"J{r}" in f
 
 
-def test_aux_top5_uses_aggregate(tmp_path: Path):
+def test_aux_top5_uses_helper_column(tmp_path: Path):
+    """v2.0: Top-5 uses LARGE + helper column Q (no AGGREGATE)."""
     out = tmp_path / "gastos.xlsx"
     create_workbook(out)
     wb = openpyxl.load_workbook(out)
     aux = wb["_aux"]
-    p2 = (aux["P2"].value or "").upper()
+
+    # P2 should use LARGE over $Q$2:$Q$1000
+    p2 = (aux["P2"].value or "")
+    assert "LARGE($Q$" in p2, f"P2 should use LARGE($Q$...): {p2}"
+
+    # N2 should use INDEX/MATCH (not SUMPRODUCT)
     n2 = (aux["N2"].value or "").upper()
-    assert "AGGREGATE" in p2, f"P2 should use AGGREGATE: {p2}"
-    assert "SUMPRODUCT" in n2, f"N2 should use SUMPRODUCT: {n2}"
+    assert "MATCH" in n2, f"N2 should use MATCH: {n2}"
+    assert "AGGREGATE" not in n2, f"N2 should NOT use AGGREGATE: {n2}"
+
+
+def test_aux_helper_column_q_filters_by_month(tmp_path: Path):
+    """v2.0: _aux!Q2 uses per-row IF to filter expenses for the month."""
+    out = tmp_path / "gastos.xlsx"
+    create_workbook(out)
+    wb = openpyxl.load_workbook(out)
+    aux = wb["_aux"]
+
+    # Q1 has the helper header
+    assert aux["Q1"].value == "_helper_top5", f"Q1 header: {aux['Q1'].value}"
+
+    # Q2 formula filters by Tipo="Gasto" and month range
+    q2 = (aux["Q2"].value or "")
+    assert 'IF(AND(Movimientos!B2="Gasto"' in q2, f"Q2 formula: {q2}"
+    assert "MONTH($B$1)+1" in q2, f"Q2 missing month end: {q2}"
 
 
 def test_aux_cumulative_daily_block(tmp_path: Path):
@@ -251,7 +278,6 @@ def test_dashboard_has_five_charts(tmp_path: Path):
     wb = openpyxl.load_workbook(out)
     dash = wb["Dashboard"]
     types = [type(c).__name__ for c in dash._charts]
-    # Original: Pie + Line. New: Line (acumulado), Bar (comparativa), Line (% ahorro)
     assert types.count("PieChart") == 1
     assert types.count("LineChart") == 3
     assert types.count("BarChart") == 1
@@ -263,35 +289,118 @@ def test_dashboard_uses_arial_font(tmp_path: Path):
     create_workbook(out)
     wb = openpyxl.load_workbook(out)
     dash = wb["Dashboard"]
+    # v2.0: header at A1 (merged), value cells at B7, G7
     assert dash["A1"].font.name == "Arial"
-    assert dash["D1"].font.name == "Arial"
+    assert dash["B7"].font.name == "Arial"
 
 
-def test_dashboard_kpi_values_are_green(tmp_path: Path):
+def test_dashboard_kpi_values_are_ink_black(tmp_path: Path):
+    """v2.0: KPI value cells use INK (#111111), not green (conditional formatting handles colour)."""
     out = tmp_path / "gastos.xlsx"
     create_workbook(out)
     wb = openpyxl.load_workbook(out)
     dash = wb["Dashboard"]
-    # Green (cross-sheet link) for D1..D4
-    for cell in ("D1", "D2", "D3", "D4"):
-        color = (dash[cell].font.color.rgb or "").upper()
-        assert "008000" in color, f"{cell} not green: {color}"
+    # Base font for Ingresos and Gastos cards should be INK
+    for cell_ref in ("B7", "G7"):
+        color = (dash[cell_ref].font.color.rgb or "").upper()
+        assert "111111" in color, f"{cell_ref} not ink: {color}"
 
 
 def test_month_selector_is_blue_input(tmp_path: Path):
+    """v2.0: month selector moved to P1."""
     out = tmp_path / "gastos.xlsx"
     create_workbook(out)
     wb = openpyxl.load_workbook(out)
     dash = wb["Dashboard"]
-    color = (dash["B1"].font.color.rgb or "").upper()
-    assert "0000FF" in color, f"B1 not blue: {color}"
+    color = (dash["P1"].font.color.rgb or "").upper()
+    assert "0000FF" in color, f"P1 not blue: {color}"
 
 
 def test_currency_format_has_parens_for_negatives(tmp_path: Path):
+    """v2.0: check B7 (Ingresos KPI cell) has parenthesis format."""
     out = tmp_path / "gastos.xlsx"
     create_workbook(out)
     wb = openpyxl.load_workbook(out)
     dash = wb["Dashboard"]
-    fmt = dash["D1"].number_format
-    assert "(" in fmt and ")" in fmt, f"D1 format missing parens: {fmt}"
-    assert '"-"' in fmt, f"D1 format missing zero literal: {fmt}"
+    fmt = dash["B7"].number_format
+    assert "(" in fmt and ")" in fmt, f"B7 format missing parens: {fmt}"
+    assert '"-"' in fmt, f"B7 format missing zero literal: {fmt}"
+
+
+# ---------------------------------------------------------------------------
+# New tests (v2.0)
+# ---------------------------------------------------------------------------
+
+def test_dashboard_has_named_ranges(tmp_path: Path):
+    """All 5 named ranges must exist in the workbook."""
+    out = tmp_path / "gastos.xlsx"
+    create_workbook(out)
+    wb = openpyxl.load_workbook(out)
+
+    for name in ("Mes_Seleccionado", "KPI_Ingresos", "KPI_Gastos", "KPI_Ahorro", "KPI_PctAhorro"):
+        assert name in wb.defined_names, f"Missing named range: {name}"
+
+
+def test_dashboard_freeze_panes_at_row_11(tmp_path: Path):
+    out = tmp_path / "gastos.xlsx"
+    create_workbook(out)
+    wb = openpyxl.load_workbook(out)
+    dash = wb["Dashboard"]
+    assert dash.freeze_panes == "A11", f"freeze_panes: {dash.freeze_panes}"
+
+
+def test_dashboard_gridlines_hidden(tmp_path: Path):
+    out = tmp_path / "gastos.xlsx"
+    create_workbook(out)
+    wb = openpyxl.load_workbook(out)
+    dash = wb["Dashboard"]
+    assert dash.sheet_view.showGridLines == False, \
+        f"showGridLines should be False: {dash.sheet_view.showGridLines}"
+
+
+def test_dashboard_protected_with_selector_unlocked(tmp_path: Path):
+    out = tmp_path / "gastos.xlsx"
+    create_workbook(out)
+    wb = openpyxl.load_workbook(out)
+    dash = wb["Dashboard"]
+
+    assert dash.protection.sheet == True, "Sheet should be protected"
+    assert dash["P1"].protection.locked == False, "P1 (month selector) should be unlocked"
+
+
+def test_dashboard_has_conditional_formatting_on_ahorro(tmp_path: Path):
+    """At least 2 FormulaRules must apply to L7 or Q7 (Ahorro/% Ahorro KPIs)."""
+    out = tmp_path / "gastos.xlsx"
+    create_workbook(out)
+    wb = openpyxl.load_workbook(out)
+    dash = wb["Dashboard"]
+
+    formula_rule_count = 0
+    for cf_range, rules in dash.conditional_formatting._cf_rules.items():
+        range_str = str(cf_range)
+        if "L7" in range_str or "Q7" in range_str:
+            for rule in rules:
+                if rule.type == "expression":
+                    formula_rule_count += 1
+
+    assert formula_rule_count >= 2, \
+        f"Expected >=2 FormulaRules on L7/Q7, got {formula_rule_count}"
+
+
+def test_dashboard_top5_has_data_bar_rule(tmp_path: Path):
+    """A DataBarRule must be registered covering S14:S18."""
+    out = tmp_path / "gastos.xlsx"
+    create_workbook(out)
+    wb = openpyxl.load_workbook(out)
+    dash = wb["Dashboard"]
+
+    found = False
+    for cf_range, rules in dash.conditional_formatting._cf_rules.items():
+        range_str = str(cf_range)
+        if "S14" in range_str or "S18" in range_str:
+            for rule in rules:
+                if rule.type == "dataBar":
+                    found = True
+                    break
+
+    assert found, "No DataBarRule found covering S14:S18"
