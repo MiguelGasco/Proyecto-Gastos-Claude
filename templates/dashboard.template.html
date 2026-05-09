@@ -108,7 +108,7 @@
     }
     .settings-key { color: var(--muted); font-size: 12px; }
     .settings-val select {
-      background: transparent;
+      background: var(--card);
       color: var(--ink);
       border: 1px solid var(--card-border);
       border-radius: 6px;
@@ -120,9 +120,21 @@
       outline: none;
       min-width: 96px;
       transition: border-color 0.15s;
+      color-scheme: dark;
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path fill='%237A8499' d='M0 0l5 6 5-6z'/></svg>");
+      background-repeat: no-repeat;
+      background-position: right 8px center;
+      padding-right: 24px;
     }
     .settings-val select:hover { border-color: var(--muted); }
     .settings-val select:focus { border-color: var(--mint); }
+    .settings-val select option {
+      background: var(--card);
+      color: var(--ink);
+      padding: 6px 10px;
+    }
 
     /* Line-chart card (top-center) */
     .line-card { display: flex; flex-direction: column; }
