@@ -6,6 +6,7 @@ from openpyxl.worksheet.table import Table, TableStyleInfo
 from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.utils import get_column_letter
 from openpyxl.styles import Font, Alignment, PatternFill
+from openpyxl.chart import PieChart, LineChart, Reference
 from scripts.categories import CATEGORIES, VALID_TYPES
 
 
@@ -249,6 +250,34 @@ def _build_dashboard(ws) -> None:
         ws.column_dimensions[col].width = w
 
 
+def _add_charts(wb) -> None:
+    aux = wb["_aux"]
+    dash = wb["Dashboard"]
+
+    # --- Pie chart: gastos por categoría del mes seleccionado ---
+    pie = PieChart()
+    pie.title = "Gastos por categoría (mes)"
+    labels = Reference(aux, min_col=6, min_row=2, max_row=11)        # F2:F11
+    data = Reference(aux, min_col=7, min_row=1, max_row=11)          # G1:G11 (incl header)
+    pie.add_data(data, titles_from_data=True)
+    pie.set_categories(labels)
+    pie.height = 9   # cm
+    pie.width = 14
+    dash.add_chart(pie, "F1")
+
+    # --- Line chart: evolución mensual últimos 12 meses ---
+    # _aux!I2:I13 = Mes (categories), J2:J13 / K2:K13 / L2:L13 = Ingresos / Gastos / Ahorro
+    line = LineChart()
+    line.title = "Evolución mensual (últimos 12 meses)"
+    cats = Reference(aux, min_col=9, min_row=2, max_row=13)          # I2:I13
+    series_data = Reference(aux, min_col=10, max_col=12, min_row=1, max_row=13)
+    line.add_data(series_data, titles_from_data=True)
+    line.set_categories(cats)
+    line.height = 9
+    line.width = 18
+    dash.add_chart(line, "F18")
+
+
 def create_workbook(path: Path) -> None:
     path = Path(path)
     if path.exists():
@@ -268,6 +297,7 @@ def create_workbook(path: Path) -> None:
     _add_validations(wb["Movimientos"])
     _build_aux(wb["_aux"])
     _build_dashboard(wb["Dashboard"])
+    _add_charts(wb)
 
     wb.save(path)
 

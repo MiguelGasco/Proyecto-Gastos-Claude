@@ -154,3 +154,16 @@ def test_dashboard_top5_links_to_aux(tmp_path: Path):
         assert dash.cell(row=r, column=1).value == f"=_aux!N{2 + i}"
         assert dash.cell(row=r, column=2).value == f"=_aux!O{2 + i}"
         assert dash.cell(row=r, column=3).value == f"=_aux!P{2 + i}"
+
+
+def test_dashboard_has_pie_and_line_charts(tmp_path: Path):
+    out = tmp_path / "gastos.xlsx"
+    create_workbook(out)
+
+    wb = openpyxl.load_workbook(out)
+    dash = wb["Dashboard"]
+
+    # openpyxl exposes charts via ws._charts
+    chart_types = {type(c).__name__ for c in dash._charts}
+    assert "PieChart" in chart_types, f"got {chart_types}"
+    assert "LineChart" in chart_types, f"got {chart_types}"
