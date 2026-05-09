@@ -5,3 +5,5 @@ __pycache__/
 gastos.xlsx
 ~$gastos.xlsx
 .claude/skills/
+data/
+dashboard.html

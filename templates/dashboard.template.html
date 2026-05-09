@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Control de Gastos</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0A0E1A;
+      --bg-elevated: #111827;
+      --card: #161D2D;
+      --card-hover: #1A2236;
+      --card-border: #1F2A3F;
+      --ink: #FFFFFF;
+      --muted: #7A8499;
+      --muted-strong: #9AA5BD;
+      --mint: #3DDC97;
+      --mint-soft: rgba(61, 220, 151, 0.15);
+      --magenta: #E91E63;
+      --magenta-soft: rgba(233, 30, 99, 0.15);
+      --purple: #9C27B0;
+      --cyan: #00BCD4;
+      --orange: #FF9800;
+      --yellow: #FFC107;
+      --negative: #FF5252;
+      --positive: #3DDC97;
+    }
+    html { color-scheme: dark; }
+    body {
+      background: var(--bg);
+      color: var(--ink);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-weight: 400;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    .dashboard {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 32px;
+    }
+    /* Header */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      padding-bottom: 28px;
+      border-bottom: 1px solid var(--card-border);
+      margin-bottom: 32px;
+    }
+    .title {
+      font-size: 30px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      line-height: 1.1;
+    }
+    .subtitle {
+      font-size: 14px;
+      color: var(--muted);
+      margin-top: 8px;
+      text-transform: capitalize;
+      font-weight: 400;
+    }
+    .month-selector { text-align: right; }
+    .month-selector label {
+      display: block;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1.8px;
+      color: var(--muted);
+      margin-bottom: 8px;
+      font-weight: 500;
+    }
+    .month-selector select {
+      background: var(--card);
+      color: var(--ink);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      min-width: 160px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .month-selector select:hover { border-color: var(--muted); }
+    .month-selector select:focus { border-color: var(--mint); }
+    /* Sections */
+    .section-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin: 36px 0 16px;
+      letter-spacing: 0.5px;
+      color: var(--ink);
+    }
+    .section-title:first-of-type { margin-top: 32px; }
+    /* KPIs */
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+    .kpi {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 22px 22px 24px;
+      transition: border-color 0.15s;
+    }
+    .kpi:hover { border-color: var(--card-hover); }
+    .kpi-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: var(--muted);
+      margin-bottom: 14px;
+      font-weight: 500;
+    }
+    .kpi-value {
+      font-size: 30px;
+      font-weight: 600;
+      letter-spacing: -0.5px;
+      font-variant-numeric: tabular-nums;
+      line-height: 1.1;
+    }
+    .kpi-value.mint { color: var(--mint); }
+    .kpi-value.positive { color: var(--mint); }
+    .kpi-value.negative { color: var(--negative); }
+    .kpi-trend {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 8px;
+      font-variant-numeric: tabular-nums;
+    }
+    .kpi-trend.up { color: var(--mint); }
+    .kpi-trend.down { color: var(--negative); }
+    /* Cards & charts */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 22px;
+      transition: border-color 0.15s;
+    }
+    .card:hover { border-color: var(--card-hover); }
+    .card-title {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1.8px;
+      color: var(--muted);
+      margin-bottom: 18px;
+      font-weight: 500;
+    }
+    .chart-container {
+      position: relative;
+      height: 280px;
+    }
+    .chart-container.tall { height: 360px; }
+    .chart-container.short { height: 220px; }
+    /* Donut center */
+    .donut-wrapper { position: relative; }
+    .donut-center {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      pointer-events: none;
+    }
+    .donut-center-value {
+      font-size: 26px;
+      font-weight: 600;
+      letter-spacing: -0.5px;
+      font-variant-numeric: tabular-nums;
+    }
+    .donut-center-value.mint { color: var(--mint); }
+    .donut-center-value.positive { color: var(--mint); }
+    .donut-center-value.negative { color: var(--negative); }
+    .donut-center-label {
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 1.8px;
+      color: var(--muted);
+      margin-top: 6px;
+      font-weight: 500;
+    }
+    /* Top 5 */
+    .top5 ul { list-style: none; }
+    .top5 li {
+      padding: 14px 0;
+      border-bottom: 1px solid var(--card-border);
+    }
+    .top5 li:last-child { border-bottom: none; }
+    .top5 li:first-child { padding-top: 0; }
+    .top5-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+    .top5-fecha {
+      color: var(--muted);
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+      min-width: 76px;
+      flex-shrink: 0;
+    }
+    .top5-desc {
+      flex: 1;
+      font-size: 14px;
+      color: var(--ink);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .top5-importe {
+      color: var(--mint);
+      font-weight: 600;
+      font-size: 14px;
+      font-variant-numeric: tabular-nums;
+      flex-shrink: 0;
+    }
+    .top5-bar {
+      height: 3px;
+      background: var(--card-border);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .top5-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--mint), rgba(61, 220, 151, 0.4));
+      border-radius: 2px;
+      transition: width 0.3s ease;
+    }
+    .empty {
+      color: var(--muted);
+      font-size: 13px;
+      padding: 24px 0;
+      text-align: center;
+      font-style: italic;
+    }
+    /* Footer */
+    footer {
+      margin-top: 48px;
+      padding-top: 24px;
+      border-top: 1px solid var(--card-border);
+      text-align: center;
+      color: var(--muted);
+      font-size: 11px;
+      letter-spacing: 0.5px;
+    }
+    /* Responsive */
+    @media (max-width: 980px) {
+      .dashboard { padding: 20px; }
+      .kpis { grid-template-columns: repeat(2, 1fr); }
+      .grid-2 { grid-template-columns: 1fr; }
+      .title { font-size: 24px; }
+      .kpi-value { font-size: 26px; }
+      header { flex-direction: column; align-items: flex-start; gap: 16px; }
+      .month-selector { text-align: left; }
+    }
+  </style>
+</head>
+<body>
+  <main class="dashboard">
+    <header>
+      <div>
+        <h1 class="title">CONTROL DE GASTOS</h1>
+        <p class="subtitle" id="subtitle">—</p>
+      </div>
+      <div class="month-selector">
+        <label for="month-select">Mes</label>
+        <select id="month-select"></select>
+      </div>
+    </header>
+
+    <section class="kpis" aria-label="Indicadores clave del mes">
+      <div class="kpi">
+        <div class="kpi-label">Ingresos del mes</div>
+        <div class="kpi-value mint" id="kpi-ingresos">—</div>
+        <div class="kpi-trend" id="kpi-ingresos-trend"></div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Gastos del mes</div>
+        <div class="kpi-value" id="kpi-gastos">—</div>
+        <div class="kpi-trend" id="kpi-gastos-trend"></div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Ahorro neto</div>
+        <div class="kpi-value" id="kpi-ahorro">—</div>
+        <div class="kpi-trend" id="kpi-ahorro-trend"></div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">% Ahorro</div>
+        <div class="kpi-value" id="kpi-pct">—</div>
+        <div class="kpi-trend" id="kpi-pct-trend"></div>
+      </div>
+    </section>
+
+    <h2 class="section-title">Resumen del mes</h2>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">Gastos por categoría</div>
+        <div class="donut-wrapper">
+          <div class="chart-container"><canvas id="chart-categorias"></canvas></div>
+          <div class="donut-center">
+            <div class="donut-center-value" id="donut-cat-total">—</div>
+            <div class="donut-center-label">Total mes</div>
+          </div>
+        </div>
+      </div>
+      <div class="card top5">
+        <div class="card-title">Top 5 gastos</div>
+        <ul id="top5-list"></ul>
+      </div>
+    </div>
+
+    <h2 class="section-title">Tendencias <span id="year-label"></span></h2>
+    <div class="card">
+      <div class="chart-container tall"><canvas id="chart-evolucion"></canvas></div>
+    </div>
+
+    <h2 class="section-title">Análisis del mes</h2>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">Gasto acumulado del mes</div>
+        <div class="chart-container"><canvas id="chart-acumulado"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">% Ahorro</div>
+        <div class="donut-wrapper">
+          <div class="chart-container short"><canvas id="chart-pct-ahorro"></canvas></div>
+          <div class="donut-center">
+            <div class="donut-center-value" id="donut-pct-value">—</div>
+            <div class="donut-center-label">Del mes</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <h2 class="section-title">Comparativas</h2>
+    <div class="card">
+      <div class="card-title">Categorías: este mes vs anterior</div>
+      <div class="chart-container tall"><canvas id="chart-comparativa"></canvas></div>
+    </div>
+
+    <footer>
+      Generado el <span id="generated-at">—</span> · <span id="movement-count">0</span> movimientos registrados
+    </footer>
+  </main>
+
+  <script>
+    // ===== Data injected by build_dashboard.py =====
+    const MOVEMENTS = __MOVEMENTS_JSON__;
+    const CATEGORIES = __CATEGORIES_JSON__;
+    const GENERATED_AT = "__GENERATED_AT__";
+
+    // ===== Constants =====
+    const PALETTE = ['#3DDC97', '#E91E63', '#9C27B0', '#00BCD4', '#FF9800', '#FFC107', '#4CAF50', '#03A9F4', '#FF5722', '#7C4DFF'];
+    const MONTHS_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+    const MUTED = '#7A8499';
+    const CARD_BORDER = '#1F2A3F';
+    const INK = '#FFFFFF';
+    const MINT = '#3DDC97';
+    const NEGATIVE = '#FF5252';
+
+    // Apply Chart.js global defaults that match our dark theme.
+    Chart.defaults.color = MUTED;
+    Chart.defaults.borderColor = CARD_BORDER;
+    Chart.defaults.font.family = "'Inter', sans-serif";
+    Chart.defaults.font.size = 11;
+    Chart.defaults.plugins.legend.position = 'bottom';
+    Chart.defaults.plugins.legend.labels.boxWidth = 10;
+    Chart.defaults.plugins.legend.labels.boxHeight = 10;
+    Chart.defaults.plugins.legend.labels.padding = 14;
+    Chart.defaults.plugins.legend.labels.usePointStyle = true;
+    Chart.defaults.plugins.tooltip.backgroundColor = '#0A0E1A';
+    Chart.defaults.plugins.tooltip.borderColor = CARD_BORDER;
+    Chart.defaults.plugins.tooltip.borderWidth = 1;
+    Chart.defaults.plugins.tooltip.titleColor = INK;
+    Chart.defaults.plugins.tooltip.bodyColor = MUTED;
+    Chart.defaults.plugins.tooltip.padding = 10;
+
+    // ===== Formatters =====
+    const fmtEUR = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const fmtEURcompact = (v) => {
+      if (Math.abs(v) >= 1000) return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
+      return fmtEUR.format(v);
+    };
+    const fmtPct = (v) => new Intl.NumberFormat('es-ES', { style: 'percent', minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(v);
+    const fmtFecha = (iso) => {
+      const [y, m, d] = iso.split('-');
+      return `${d}/${m}/${y}`;
+    };
+    const fmtFechaShort = (iso) => {
+      const [y, m, d] = iso.split('-');
+      return `${d}/${m}`;
+    };
+    const ymOf = (iso) => iso.slice(0, 7);
+    const yearOf = (iso) => parseInt(iso.slice(0, 4), 10);
+    const monthOf = (iso) => parseInt(iso.slice(5, 7), 10);
+
+    // ===== State =====
+    const allMonths = (() => {
+      const set = new Set(MOVEMENTS.map(m => ymOf(m.fecha)));
+      // Always include the current month
+      const today = new Date();
+      const currentYM = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+      set.add(currentYM);
+      return [...set].sort().reverse();
+    })();
+    let selectedMonth = allMonths[0] || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+
+    // ===== Chart instances (so we can destroy/recreate on rerender) =====
+    let chartCategorias, chartEvolucion, chartAcumulado, chartPctAhorro, chartComparativa;
+
+    // ===== Pure aggregators =====
+    function filterByMonth(movs, ym) {
+      return movs.filter(m => ymOf(m.fecha) === ym);
+    }
+    function filterByYear(movs, year) {
+      return movs.filter(m => yearOf(m.fecha) === year);
+    }
+    function sumBy(movs, predicate) {
+      return movs.filter(predicate).reduce((sum, m) => sum + m.importe, 0);
+    }
+    function computeKpis(movsMonth) {
+      const ingresos = sumBy(movsMonth, m => m.tipo === 'Ingreso');
+      const gastos = sumBy(movsMonth, m => m.tipo === 'Gasto');
+      const ahorro = ingresos - gastos;
+      const pct = ingresos > 0 ? ahorro / ingresos : 0;
+      return { ingresos, gastos, ahorro, pct };
+    }
+    function computeByCategory(movsMonth) {
+      const map = {};
+      for (const cat of CATEGORIES.Gasto) map[cat] = 0;
+      for (const m of movsMonth) {
+        if (m.tipo === 'Gasto' && map.hasOwnProperty(m.categoria)) {
+          map[m.categoria] += m.importe;
+        }
+      }
+      return Object.entries(map)
+        .filter(([_, v]) => v > 0)
+        .sort((a, b) => b[1] - a[1])
+        .map(([cat, total]) => ({ categoria: cat, total }));
+    }
+    function computeTop5(movsMonth) {
+      return movsMonth
+        .filter(m => m.tipo === 'Gasto')
+        .sort((a, b) => b.importe - a.importe)
+        .slice(0, 5);
+    }
+    function computeMonthlyEvolution(movs, year) {
+      // Returns array of 12 {label, ingresos, gastos, ahorro}
+      const out = [];
+      for (let m = 1; m <= 12; m++) {
+        const ym = `${year}-${String(m).padStart(2, '0')}`;
+        const monthMovs = filterByMonth(movs, ym);
+        const ingresos = sumBy(monthMovs, x => x.tipo === 'Ingreso');
+        const gastos = sumBy(monthMovs, x => x.tipo === 'Gasto');
+        out.push({ label: MONTHS_ES[m - 1].slice(0, 3), ingresos, gastos, ahorro: ingresos - gastos });
+      }
+      return out;
+    }
+    function computeCumulative(movsMonth, ym) {
+      // Returns array of {day, total} for days 1..daysInMonth
+      const [y, m] = ym.split('-').map(n => parseInt(n, 10));
+      const daysInMonth = new Date(y, m, 0).getDate();
+      const today = new Date();
+      const isCurrentMonth = today.getFullYear() === y && (today.getMonth() + 1) === m;
+      const cutoffDay = isCurrentMonth ? today.getDate() : daysInMonth;
+
+      const out = [];
+      let running = 0;
+      for (let d = 1; d <= daysInMonth; d++) {
+        const day = String(d).padStart(2, '0');
+        const dateIso = `${ym}-${day}`;
+        const dailyGastos = movsMonth
+          .filter(x => x.tipo === 'Gasto' && x.fecha === dateIso)
+          .reduce((s, x) => s + x.importe, 0);
+        running += dailyGastos;
+        out.push({ day: d, total: d <= cutoffDay ? running : null });
+      }
+      return out;
+    }
+    function computeCategoryComparison(movs, ym) {
+      // ym current vs ym - 1 month
+      const [y, m] = ym.split('-').map(n => parseInt(n, 10));
+      const prevY = m === 1 ? y - 1 : y;
+      const prevM = m === 1 ? 12 : m - 1;
+      const prevYm = `${prevY}-${String(prevM).padStart(2, '0')}`;
+
+      const curMovs = filterByMonth(movs, ym).filter(x => x.tipo === 'Gasto');
+      const prevMovs = filterByMonth(movs, prevYm).filter(x => x.tipo === 'Gasto');
+
+      return CATEGORIES.Gasto.map(cat => ({
+        categoria: cat,
+        current: curMovs.filter(x => x.categoria === cat).reduce((s, x) => s + x.importe, 0),
+        previous: prevMovs.filter(x => x.categoria === cat).reduce((s, x) => s + x.importe, 0),
+      }));
+    }
+
+    // ===== Renderers =====
+    function renderHeader() {
+      const [y, m] = selectedMonth.split('-').map(n => parseInt(n, 10));
+      document.getElementById('subtitle').textContent = `${MONTHS_ES[m - 1]} ${y}`;
+      document.getElementById('year-label').textContent = y;
+      document.getElementById('generated-at').textContent = GENERATED_AT;
+      document.getElementById('movement-count').textContent = MOVEMENTS.length;
+    }
+    function renderMonthSelector() {
+      const sel = document.getElementById('month-select');
+      sel.innerHTML = '';
+      for (const ym of allMonths) {
+        const [y, m] = ym.split('-').map(n => parseInt(n, 10));
+        const opt = document.createElement('option');
+        opt.value = ym;
+        opt.textContent = `${MONTHS_ES[m - 1]} ${y}`;
+        if (ym === selectedMonth) opt.selected = true;
+        sel.appendChild(opt);
+      }
+      sel.addEventListener('change', e => {
+        selectedMonth = e.target.value;
+        rerender();
+      });
+    }
+    function renderKpis(k, kPrev) {
+      const setVal = (id, v, fmtFn = fmtEUR.format) => {
+        document.getElementById(id).textContent = fmtFn(v);
+      };
+      setVal('kpi-ingresos', k.ingresos);
+      setVal('kpi-gastos', k.gastos);
+      const ahorroEl = document.getElementById('kpi-ahorro');
+      ahorroEl.textContent = fmtEUR.format(k.ahorro);
+      ahorroEl.classList.toggle('positive', k.ahorro >= 0);
+      ahorroEl.classList.toggle('negative', k.ahorro < 0);
+      const pctEl = document.getElementById('kpi-pct');
+      pctEl.textContent = fmtPct(k.pct);
+      pctEl.classList.toggle('positive', k.pct >= 0);
+      pctEl.classList.toggle('negative', k.pct < 0);
+
+      // Trends vs prev month
+      const trend = (id, cur, prev, isPct = false) => {
+        const el = document.getElementById(id);
+        if (!prev || (prev === 0 && !isPct)) {
+          el.textContent = '';
+          return;
+        }
+        const diff = cur - prev;
+        const sign = diff > 0 ? '+' : '';
+        const pretty = isPct ? `${sign}${(diff * 100).toFixed(1)} pp` : `${sign}${fmtEURcompact(diff)}`;
+        el.textContent = `${pretty} vs mes anterior`;
+        el.classList.toggle('up', diff > 0);
+        el.classList.toggle('down', diff < 0);
+      };
+      trend('kpi-ingresos-trend', k.ingresos, kPrev.ingresos);
+      trend('kpi-gastos-trend', k.gastos, kPrev.gastos);
+      trend('kpi-ahorro-trend', k.ahorro, kPrev.ahorro);
+      trend('kpi-pct-trend', k.pct, kPrev.pct, true);
+    }
+    function renderTop5(rows) {
+      const ul = document.getElementById('top5-list');
+      ul.innerHTML = '';
+      if (rows.length === 0) {
+        const li = document.createElement('li');
+        li.className = 'empty';
+        li.textContent = 'Sin gastos este mes';
+        ul.appendChild(li);
+        return;
+      }
+      const max = rows[0].importe;
+      for (const r of rows) {
+        const li = document.createElement('li');
+        const pct = max > 0 ? (r.importe / max) * 100 : 0;
+        li.innerHTML = `
+          <div class="top5-row">
+            <span class="top5-fecha">${fmtFecha(r.fecha)}</span>
+            <span class="top5-desc">${escapeHtml(r.descripcion || r.categoria)}</span>
+            <span class="top5-importe">${fmtEUR.format(r.importe)}</span>
+          </div>
+          <div class="top5-bar"><div class="top5-bar-fill" style="width: ${pct}%"></div></div>
+        `;
+        ul.appendChild(li);
+      }
+    }
+    function escapeHtml(s) {
+      const d = document.createElement('div');
+      d.textContent = String(s);
+      return d.innerHTML;
+    }
+
+    function renderCategoriasChart(byCat, total) {
+      if (chartCategorias) chartCategorias.destroy();
+      const ctx = document.getElementById('chart-categorias');
+      document.getElementById('donut-cat-total').textContent = fmtEUR.format(total);
+      if (byCat.length === 0) {
+        chartCategorias = new Chart(ctx, {
+          type: 'doughnut',
+          data: { labels: ['Sin gastos'], datasets: [{ data: [1], backgroundColor: [CARD_BORDER], borderWidth: 0 }] },
+          options: {
+            responsive: true, maintainAspectRatio: false, cutout: '70%',
+            plugins: { legend: { display: false }, tooltip: { enabled: false } },
+          },
+        });
+        return;
+      }
+      chartCategorias = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: byCat.map(d => d.categoria),
+          datasets: [{
+            data: byCat.map(d => d.total),
+            backgroundColor: byCat.map((_, i) => PALETTE[i % PALETTE.length]),
+            borderColor: '#161D2D',
+            borderWidth: 2,
+            hoverOffset: 6,
+          }],
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false, cutout: '70%',
+          plugins: {
+            legend: { position: 'right', labels: { boxWidth: 10, boxHeight: 10, padding: 12, usePointStyle: true, font: { size: 11 } } },
+            tooltip: {
+              callbacks: {
+                label: ctx => ` ${ctx.label}: ${fmtEUR.format(ctx.parsed)}`,
+              },
+            },
+          },
+        },
+      });
+    }
+    function renderEvolucionChart(monthly) {
+      if (chartEvolucion) chartEvolucion.destroy();
+      const ctx = document.getElementById('chart-evolucion');
+      const grad = (color) => {
+        const c = ctx.getContext('2d');
+        const g = c.createLinearGradient(0, 0, 0, 360);
+        g.addColorStop(0, color + '55');
+        g.addColorStop(1, color + '00');
+        return g;
+      };
+      chartEvolucion = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: monthly.map(d => d.label),
+          datasets: [
+            { label: 'Ingresos', data: monthly.map(d => d.ingresos), borderColor: MINT, backgroundColor: grad(MINT), tension: 0.35, fill: true, borderWidth: 2, pointRadius: 3, pointBackgroundColor: MINT },
+            { label: 'Gastos',   data: monthly.map(d => d.gastos),   borderColor: '#E91E63', backgroundColor: grad('#E91E63'), tension: 0.35, fill: true, borderWidth: 2, pointRadius: 3, pointBackgroundColor: '#E91E63' },
+            { label: 'Ahorro',   data: monthly.map(d => d.ahorro),   borderColor: '#00BCD4', backgroundColor: grad('#00BCD4'), tension: 0.35, fill: true, borderWidth: 2, pointRadius: 3, pointBackgroundColor: '#00BCD4' },
+          ],
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: { position: 'bottom' },
+            tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${fmtEUR.format(ctx.parsed.y)}` } },
+          },
+          scales: {
+            x: { grid: { display: false }, ticks: { color: MUTED } },
+            y: { grid: { color: CARD_BORDER }, ticks: { color: MUTED, callback: v => fmtEURcompact(v) } },
+          },
+        },
+      });
+    }
+    function renderAcumuladoChart(daily) {
+      if (chartAcumulado) chartAcumulado.destroy();
+      const ctx = document.getElementById('chart-acumulado');
+      const c = ctx.getContext('2d');
+      const grad = c.createLinearGradient(0, 0, 0, 280);
+      grad.addColorStop(0, MINT + '66');
+      grad.addColorStop(1, MINT + '00');
+      chartAcumulado = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: daily.map(d => String(d.day).padStart(2, '0')),
+          datasets: [{
+            label: 'Acumulado',
+            data: daily.map(d => d.total),
+            borderColor: MINT,
+            backgroundColor: grad,
+            tension: 0.3, fill: true, borderWidth: 2, pointRadius: 0,
+            spanGaps: false,
+          }],
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { title: ctx => `Día ${ctx[0].label}`, label: ctx => ` Acumulado: ${fmtEUR.format(ctx.parsed.y)}` } },
+          },
+          scales: {
+            x: { grid: { display: false }, ticks: { color: MUTED, maxTicksLimit: 10 } },
+            y: { grid: { color: CARD_BORDER }, ticks: { color: MUTED, callback: v => fmtEURcompact(v) } },
+          },
+        },
+      });
+    }
+    function renderPctAhorroChart(pct) {
+      if (chartPctAhorro) chartPctAhorro.destroy();
+      const ctx = document.getElementById('chart-pct-ahorro');
+      const valueEl = document.getElementById('donut-pct-value');
+      valueEl.textContent = fmtPct(Math.max(0, pct));
+      valueEl.classList.toggle('positive', pct >= 0.30);
+      valueEl.classList.toggle('mint', pct >= 0 && pct < 0.30);
+      valueEl.classList.toggle('negative', pct < 0);
+      const filled = Math.max(0, Math.min(1, pct));
+      const remaining = 1 - filled;
+      const color = pct < 0 ? NEGATIVE : (pct >= 0.30 ? MINT : '#FFC107');
+      chartPctAhorro = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          datasets: [{
+            data: [filled, remaining],
+            backgroundColor: [color, CARD_BORDER],
+            borderWidth: 0,
+            cutout: '78%',
+            circumference: 360,
+            rotation: -90,
+          }],
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false, cutout: '78%',
+          plugins: { legend: { display: false }, tooltip: { enabled: false } },
+        },
+      });
+    }
+    function renderComparativaChart(rows) {
+      if (chartComparativa) chartComparativa.destroy();
+      const ctx = document.getElementById('chart-comparativa');
+      // Filter out rows where both are 0
+      const visible = rows.filter(r => r.current > 0 || r.previous > 0);
+      const data = visible.length > 0 ? visible : rows.slice(0, 5); // show at least 5 even if empty
+      chartComparativa = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: data.map(d => d.categoria),
+          datasets: [
+            { label: 'Este mes', data: data.map(d => d.current), backgroundColor: MINT, borderRadius: 4, borderWidth: 0 },
+            { label: 'Mes anterior', data: data.map(d => d.previous), backgroundColor: MUTED, borderRadius: 4, borderWidth: 0 },
+          ],
+        },
+        options: {
+          indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom' },
+            tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${fmtEUR.format(ctx.parsed.x)}` } },
+          },
+          scales: {
+            x: { grid: { color: CARD_BORDER }, ticks: { color: MUTED, callback: v => fmtEURcompact(v) } },
+            y: { grid: { display: false }, ticks: { color: MUTED } },
+          },
+        },
+      });
+    }
+
+    // ===== Main rerender =====
+    function rerender() {
+      const movsMonth = filterByMonth(MOVEMENTS, selectedMonth);
+      const k = computeKpis(movsMonth);
+
+      // Previous month for trends
+      const [y, m] = selectedMonth.split('-').map(n => parseInt(n, 10));
+      const prevY = m === 1 ? y - 1 : y;
+      const prevM = m === 1 ? 12 : m - 1;
+      const prevYm = `${prevY}-${String(prevM).padStart(2, '0')}`;
+      const kPrev = computeKpis(filterByMonth(MOVEMENTS, prevYm));
+
+      renderHeader();
+      renderKpis(k, kPrev);
+      renderTop5(computeTop5(movsMonth));
+      const byCat = computeByCategory(movsMonth);
+      renderCategoriasChart(byCat, k.gastos);
+      renderEvolucionChart(computeMonthlyEvolution(MOVEMENTS, y));
+      renderAcumuladoChart(computeCumulative(movsMonth, selectedMonth));
+      renderPctAhorroChart(k.pct);
+      renderComparativaChart(computeCategoryComparison(MOVEMENTS, selectedMonth));
+    }
+
+    // ===== Boot =====
+    renderMonthSelector();
+    rerender();
+  </script>
+</body>
+</html>

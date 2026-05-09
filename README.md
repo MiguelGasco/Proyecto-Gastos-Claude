@@ -1,6 +1,6 @@
 # Proyecto Gastos Claude
 
-Registro personal de ingresos y gastos en un único Excel (`gastos.xlsx`), alimentado por Claude conversacionalmente.
+Registro personal de ingresos y gastos con dashboard web autocontenido. Datos en `data/movements.json`, web en `dashboard.html` (regenerada automáticamente al añadir movimientos).
 
 ## Setup (una vez)
 
@@ -8,45 +8,33 @@ Registro personal de ingresos y gastos en un único Excel (`gastos.xlsx`), alime
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-python -m scripts.init_workbook
+python -m scripts.init_data
 ```
 
-Esto crea `gastos.xlsx` con las hojas Dashboard, Movimientos, Categorías y `_aux` (oculta).
+Esto crea `data/movements.json` (importando los movimientos del legacy `gastos.xlsx` si existe) y la primera versión de `dashboard.html`.
 
 ## Uso diario
 
-Habla con Claude:
+Hablás con Claude:
 
 > "Hoy gasté 30 € comiendo con amigos."
 
-Claude ejecutará por ti:
+Claude ejecuta:
 
 ```powershell
 python -m scripts.add_movement --fecha 2026-05-09 --tipo Gasto --categoria Restauración --importe 30 --descripcion "Comida con amigos"
 ```
 
-Y guardará el movimiento en Engram para mantener contexto entre sesiones.
+Esto: (1) actualiza `data/movements.json`, (2) regenera `dashboard.html`. Vos refrescás (F5) y ves el cambio.
 
 ## Comandos manuales
 
 ```powershell
-# Añadir
 python -m scripts.add_movement --fecha 2026-05-09 --tipo Gasto --categoria Restauración --importe 30 --descripcion "Comida"
-
-# Editar la última fila
 python -m scripts.add_movement --edit-last --importe 35
-
-# Borrar la última fila
 python -m scripts.add_movement --delete-last
+python -m scripts.build_dashboard          # solo regenera dashboard.html
 ```
-
-## Categorías
-
-**Gastos:** Alimentación, Restauración, Vivienda, Suministros, Transporte, Salud, Ocio, Compras, Suscripciones, Otros.
-
-**Ingresos:** Nómina, Extras, Otros.
-
-Para añadir o renombrar categorías, edita `scripts/categories.py` y vuelve a correr `python -m scripts.init_workbook` (después de borrar el `gastos.xlsx` actual o renombrarlo).
 
 ## Tests
 
