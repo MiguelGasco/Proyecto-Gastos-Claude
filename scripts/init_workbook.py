@@ -6,7 +6,7 @@ from openpyxl.worksheet.table import Table, TableStyleInfo
 from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.utils import get_column_letter
 from openpyxl.styles import Font, Alignment, PatternFill
-from openpyxl.chart import PieChart, LineChart, Reference
+from openpyxl.chart import PieChart, LineChart, BarChart, Reference
 from scripts.categories import CATEGORIES, VALID_TYPES
 
 
@@ -129,21 +129,23 @@ def _build_aux(ws) -> None:
         )
         ws.cell(row=i, column=7).number_format = '#,##0.00 "€"'
 
-    # --- Monthly evolution block (I1:L13), rolling 12 months ending at selected ---
+    # --- Monthly evolution block (I1:M13), rolling 12 months oldest→newest ---
     ws["I1"] = "Mes"
     ws["J1"] = "Ingresos"
     ws["K1"] = "Gastos"
     ws["L1"] = "Ahorro"
+    ws["M1"] = "% Ahorro"
     for offset in range(12):
         r = 2 + offset
-        # offset 0 = selected month, offset 11 = 11 months earlier
+        # offset 0 = oldest (11 months back), offset 11 = current (selected) month
+        months_back = 11 - offset
         ws.cell(
             row=r,
             column=9,
-            value=f'=TEXT(DATE(YEAR($B$1),MONTH($B$1)-{offset},1),"mm/yyyy")',
+            value=f'=TEXT(DATE(YEAR($B$1),MONTH($B$1)-{months_back},1),"mm/yyyy")',
         )
-        start_ref = f'DATE(YEAR($B$1),MONTH($B$1)-{offset},1)'
-        end_ref = f'DATE(YEAR($B$1),MONTH($B$1)-{offset}+1,1)'
+        start_ref = f'DATE(YEAR($B$1),MONTH($B$1)-{months_back},1)'
+        end_ref = f'DATE(YEAR($B$1),MONTH($B$1)-{months_back}+1,1)'
         ws.cell(
             row=r,
             column=10,
@@ -163,46 +165,94 @@ def _build_aux(ws) -> None:
             ),
         )
         ws.cell(row=r, column=12, value=f"=J{r}-K{r}")
+        ws.cell(row=r, column=13, value=f"=IFERROR(L{r}/J{r},0)")
         for c in (10, 11, 12):
             ws.cell(row=r, column=c).number_format = '#,##0.00 "€"'
+        ws.cell(row=r, column=13).number_format = "0.0%"
 
-    # --- Top-5 block (N1:P6). Uses LARGE + INDEX/MATCH on the static table range ---
+    # --- Top-5 block (N1:P6). Uses FILTER+SORT+INDEX for correct ranking ---
     ws["N1"] = "Fecha"
     ws["O1"] = "Descripción"
     ws["P1"] = "Importe"
+    filter_base = (
+        'FILTER(Movimientos!$A$2:$E$1000,'
+        '(Movimientos!$B$2:$B$1000="Gasto")'
+        '*(Movimientos!$A$2:$A$1000>=$B$1)'
+        f'*(Movimientos!$A$2:$A$1000<{month_end_excl}))'
+    )
+    sorted_expr = f'SORT({filter_base},4,-1)'
     for i in range(5):
         r = 2 + i
         rank = i + 1
-        # Importe (P): rank-th largest of Importe in the month, type=Gasto
-        ws.cell(
-            row=r,
-            column=16,
-            value=(
-                f'=IFERROR(LARGE(IF((Movimientos!$B$2:$B$1000="Gasto")*'
-                f'(Movimientos!$A$2:$A$1000>=$B$1)*'
-                f'(Movimientos!$A$2:$A$1000<{month_end_excl}),'
-                f'Movimientos!$D$2:$D$1000),{rank}),"")'
-            ),
-        )
-        # Fecha (N) and Descripción (O): match by the importe found in P
+        # Fecha (N): column 1 of sorted result
         ws.cell(
             row=r,
             column=14,
-            value=(
-                f'=IFERROR(INDEX(Movimientos!$A$2:$A$1000,'
-                f'MATCH(P{r},Movimientos!$D$2:$D$1000,0)),"")'
-            ),
+            value=f'=IFERROR(INDEX({sorted_expr},{rank},1),"")',
         )
+        # Descripción (O): column 5 of sorted result
         ws.cell(
             row=r,
             column=15,
-            value=(
-                f'=IFERROR(INDEX(Movimientos!$E$2:$E$1000,'
-                f'MATCH(P{r},Movimientos!$D$2:$D$1000,0)),"")'
-            ),
+            value=f'=IFERROR(INDEX({sorted_expr},{rank},5),"")',
+        )
+        # Importe (P): column 4 of sorted result
+        ws.cell(
+            row=r,
+            column=16,
+            value=f'=IFERROR(INDEX({sorted_expr},{rank},4),"")',
         )
         ws.cell(row=r, column=14).number_format = "dd/mm/yyyy"
         ws.cell(row=r, column=16).number_format = '#,##0.00 "€"'
+
+    # --- Cumulative daily expenses block (R1:S32) ---
+    ws["R1"] = "Día"
+    ws["S1"] = "Acumulado"
+    for i in range(31):
+        r = 2 + i
+        ws.cell(row=r, column=18, value=f"=$B$1+{i}")
+        ws.cell(row=r, column=18).number_format = "dd/mm"
+        ws.cell(
+            row=r,
+            column=19,
+            value=(
+                f'=IF(R{r}>=DATE(YEAR($B$1),MONTH($B$1)+1,1),NA(),'
+                f'SUMIFS(tblMov[Importe],tblMov[Tipo],"Gasto",'
+                f'tblMov[Fecha],">="&$B$1,'
+                f'tblMov[Fecha],"<="&R{r}))'
+            ),
+        )
+        ws.cell(row=r, column=19).number_format = '#,##0.00 "€"'
+
+    # --- Category comparison: this month vs previous month (U1:W11) ---
+    ws["U1"] = "Categoría"
+    ws["V1"] = "Este mes"
+    ws["W1"] = "Mes anterior"
+    prev_start = 'DATE(YEAR($B$1),MONTH($B$1)-1,1)'
+    for i, cat in enumerate(CATEGORIES["Gasto"], start=2):
+        ws.cell(row=i, column=21, value=cat)
+        ws.cell(
+            row=i,
+            column=22,
+            value=(
+                f'=SUMIFS(tblMov[Importe],tblMov[Tipo],"Gasto",'
+                f'tblMov[Categoría],U{i},'
+                f'tblMov[Fecha],">="&{month_start},'
+                f'tblMov[Fecha],"<"&{month_end_excl})'
+            ),
+        )
+        ws.cell(
+            row=i,
+            column=23,
+            value=(
+                f'=SUMIFS(tblMov[Importe],tblMov[Tipo],"Gasto",'
+                f'tblMov[Categoría],U{i},'
+                f'tblMov[Fecha],">="&{prev_start},'
+                f'tblMov[Fecha],"<"&{month_start})'
+            ),
+        )
+        ws.cell(row=i, column=22).number_format = '#,##0.00 "€"'
+        ws.cell(row=i, column=23).number_format = '#,##0.00 "€"'
 
     ws.column_dimensions["A"].width = 18
     ws.column_dimensions["I"].width = 12
@@ -254,7 +304,7 @@ def _add_charts(wb) -> None:
     aux = wb["_aux"]
     dash = wb["Dashboard"]
 
-    # --- Pie chart: gastos por categoría del mes seleccionado ---
+    # --- (1) Pie chart: gastos por categoría del mes seleccionado ---
     pie = PieChart()
     pie.title = "Gastos por categoría (mes)"
     labels = Reference(aux, min_col=6, min_row=2, max_row=11)        # F2:F11
@@ -265,7 +315,7 @@ def _add_charts(wb) -> None:
     pie.width = 14
     dash.add_chart(pie, "F1")
 
-    # --- Line chart: evolución mensual últimos 12 meses ---
+    # --- (2) Line chart: evolución mensual últimos 12 meses (oldest→newest) ---
     # _aux!I2:I13 = Mes (categories), J2:J13 / K2:K13 / L2:L13 = Ingresos / Gastos / Ahorro
     line = LineChart()
     line.title = "Evolución mensual (últimos 12 meses)"
@@ -276,6 +326,41 @@ def _add_charts(wb) -> None:
     line.height = 9
     line.width = 18
     dash.add_chart(line, "F18")
+
+    # --- (3) Line chart: gasto acumulado del mes ---
+    acum = LineChart()
+    acum.title = "Gasto acumulado del mes"
+    acum_cats = Reference(aux, min_col=18, min_row=2, max_row=32)    # R2:R32
+    acum_data = Reference(aux, min_col=19, min_row=1, max_row=32)    # S1:S32 (header included)
+    acum.add_data(acum_data, titles_from_data=True)
+    acum.set_categories(acum_cats)
+    acum.height = 9
+    acum.width = 18
+    dash.add_chart(acum, "F35")
+
+    # --- (4) Bar chart: comparativa categorías este mes vs mes anterior ---
+    comp = BarChart()
+    comp.type = "bar"
+    comp.style = 11
+    comp.title = "Categorías: este mes vs mes anterior"
+    comp_cats = Reference(aux, min_col=21, min_row=2, max_row=11)    # U2:U11
+    comp_data = Reference(aux, min_col=22, max_col=23, min_row=1, max_row=11)  # V1:W11
+    comp.add_data(comp_data, titles_from_data=True)
+    comp.set_categories(comp_cats)
+    comp.height = 11
+    comp.width = 18
+    dash.add_chart(comp, "F52")
+
+    # --- (5) Line chart: % ahorro mensual 12 meses ---
+    pct = LineChart()
+    pct.title = "% Ahorro mensual (12 meses)"
+    pct_cats = Reference(aux, min_col=9, min_row=2, max_row=13)      # I2:I13 (months)
+    pct_data = Reference(aux, min_col=13, min_row=1, max_row=13)     # M1:M13 (% ahorro incl header)
+    pct.add_data(pct_data, titles_from_data=True)
+    pct.set_categories(pct_cats)
+    pct.height = 9
+    pct.width = 18
+    dash.add_chart(pct, "F70")
 
 
 def create_workbook(path: Path) -> None:

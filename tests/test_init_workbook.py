@@ -177,3 +177,81 @@ def test_aux_sheet_is_hidden(tmp_path: Path):
     assert wb["_aux"].sheet_state == "hidden"
     # Dashboard is the active/visible default sheet
     assert wb.active.title == "Dashboard"
+
+
+def test_aux_evolution_is_oldest_to_newest(tmp_path: Path):
+    out = tmp_path / "gastos.xlsx"
+    create_workbook(out)
+    wb = openpyxl.load_workbook(out)
+    aux = wb["_aux"]
+    # Row 2 must reference 11 months back; row 13 must reference current month.
+    row2 = aux.cell(row=2, column=9).value or ""
+    row13 = aux.cell(row=13, column=9).value or ""
+    assert "MONTH($B$1)-11" in row2, f"expected oldest at row 2: {row2}"
+    # Selected month formula uses the bare $B$1 path (months_back = 0)
+    assert "MONTH($B$1)-0" in row13 or "MONTH($B$1))" in row13.replace(" ", "")
+
+
+def test_aux_evolution_has_pct_ahorro_column(tmp_path: Path):
+    out = tmp_path / "gastos.xlsx"
+    create_workbook(out)
+    wb = openpyxl.load_workbook(out)
+    aux = wb["_aux"]
+    assert aux["M1"].value == "% Ahorro"
+    for r in range(2, 14):
+        f = aux.cell(row=r, column=13).value or ""
+        assert "IFERROR" in f.upper() and f"L{r}" in f and f"J{r}" in f
+
+
+def test_aux_top5_uses_filter_sort(tmp_path: Path):
+    out = tmp_path / "gastos.xlsx"
+    create_workbook(out)
+    wb = openpyxl.load_workbook(out)
+    aux = wb["_aux"]
+    f = (aux["P2"].value or "").upper()
+    assert "FILTER" in f and "SORT" in f, f"top-5 not using FILTER+SORT: {f}"
+
+
+def test_aux_cumulative_daily_block(tmp_path: Path):
+    out = tmp_path / "gastos.xlsx"
+    create_workbook(out)
+    wb = openpyxl.load_workbook(out)
+    aux = wb["_aux"]
+    assert aux["R1"].value == "Día"
+    assert aux["S1"].value == "Acumulado"
+    # 31 rows of dates (R2..R32) and 31 rows of cumulative SUMIFS (S2..S32)
+    for r in range(2, 33):
+        date_formula = aux.cell(row=r, column=18).value or ""
+        sum_formula = (aux.cell(row=r, column=19).value or "").upper()
+        assert "$B$1" in date_formula
+        assert "SUMIFS" in sum_formula and "NA()" in sum_formula
+
+
+def test_aux_category_comparison_block(tmp_path: Path):
+    out = tmp_path / "gastos.xlsx"
+    create_workbook(out)
+    wb = openpyxl.load_workbook(out)
+    aux = wb["_aux"]
+    assert aux["U1"].value == "Categoría"
+    assert aux["V1"].value == "Este mes"
+    assert aux["W1"].value == "Mes anterior"
+    from scripts.categories import CATEGORIES
+    cats = [aux.cell(row=r, column=21).value for r in range(2, 12)]
+    assert cats == CATEGORIES["Gasto"]
+    for r in range(2, 12):
+        v = (aux.cell(row=r, column=22).value or "").upper()
+        w = (aux.cell(row=r, column=23).value or "").upper()
+        assert "SUMIFS" in v and "SUMIFS" in w
+
+
+def test_dashboard_has_five_charts(tmp_path: Path):
+    out = tmp_path / "gastos.xlsx"
+    create_workbook(out)
+    wb = openpyxl.load_workbook(out)
+    dash = wb["Dashboard"]
+    types = [type(c).__name__ for c in dash._charts]
+    # Original: Pie + Line. New: Line (acumulado), Bar (comparativa), Line (% ahorro)
+    assert types.count("PieChart") == 1
+    assert types.count("LineChart") == 3
+    assert types.count("BarChart") == 1
+    assert len(types) == 5
