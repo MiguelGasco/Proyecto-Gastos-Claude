@@ -602,8 +602,37 @@
     Chart.defaults.plugins.tooltip.borderWidth = 1;
     Chart.defaults.plugins.tooltip.titleColor = INK;
     Chart.defaults.plugins.tooltip.bodyColor = INK;
-    Chart.defaults.plugins.tooltip.padding = 10;
+    Chart.defaults.plugins.tooltip.padding = 12;
     Chart.defaults.plugins.tooltip.displayColors = false;
+    Chart.defaults.plugins.tooltip.titleFont = { family: "'Inter', sans-serif", size: 11, weight: '600' };
+    Chart.defaults.plugins.tooltip.bodyFont = { family: "'Inter', sans-serif", size: 13, weight: '500' };
+    Chart.defaults.plugins.tooltip.cornerRadius = 8;
+    Chart.defaults.plugins.tooltip.caretSize = 6;
+    Chart.defaults.animation.duration = 350;
+    Chart.defaults.animations.colors = false;
+    Chart.defaults.animations.x = false;
+
+    // Custom plugin: vertical guide line on hover (line + bar charts)
+    const hoverGuide = {
+      id: 'hoverGuide',
+      afterDatasetsDraw(chart) {
+        const active = chart.tooltip?.getActiveElements?.() || [];
+        if (active.length === 0) return;
+        const x = active[0].element.x;
+        const ctx = chart.ctx;
+        const top = chart.chartArea.top;
+        const bottom = chart.chartArea.bottom;
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(x, top);
+        ctx.lineTo(x, bottom);
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = 'rgba(77, 212, 148, 0.45)';
+        ctx.setLineDash([4, 4]);
+        ctx.stroke();
+        ctx.restore();
+      },
+    };
 
     // ===== Formatters =====
     const fmtEUR = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -791,17 +820,28 @@
             data: daily.map(d => d.cumulative),
             borderColor: MINT,
             backgroundColor: grad,
-            tension: 0.35, fill: true, borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 5,
+            tension: 0.35, fill: true, borderWidth: 2.5,
+            pointRadius: 0, pointHitRadius: 20, pointHoverRadius: 6,
             pointHoverBackgroundColor: MINT, pointHoverBorderColor: '#FFFFFF', pointHoverBorderWidth: 2,
           }],
         },
         options: {
           responsive: true, maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false, axis: 'x' },
           plugins: {
             tooltip: {
+              position: 'nearest',
               callbacks: {
-                title: ctx => `Día ${ctx[0].label}`,
-                label: ctx => fmtEUR.format(ctx.parsed.y),
+                title: ctx => {
+                  const day = ctx[0].label;
+                  const [y, m] = selectedMonth.split('-');
+                  return `${day.padStart(2, '0')}/${m}/${y}`;
+                },
+                label: ctx => `Acumulado: ${fmtEUR.format(ctx.parsed.y)}`,
+                afterLabel: ctx => {
+                  const dayData = daily[ctx.dataIndex];
+                  return dayData.daily > 0 ? `Gasto del día: ${fmtEUR.format(dayData.daily)}` : 'Sin gasto este día';
+                },
               },
             },
           },
@@ -810,9 +850,10 @@
             y: { grid: { color: GRID_LINE, drawTicks: false }, border: { display: false }, ticks: { color: MUTED, callback: v => fmtEURcompact(v), font: { size: 10 } }, min: 0, max: yMax, beginAtZero: true },
           },
         },
+        plugins: [hoverGuide],
       });
     }
-    function renderPctAhorroChart(pct) {
+    function renderPctAhorroChart(pct, k) {
       if (chartPctAhorro) chartPctAhorro.destroy();
       const ctx = document.getElementById('chart-pct-ahorro');
       const valueEl = document.getElementById('donut-pct-value');
@@ -824,9 +865,11 @@
       chartPctAhorro = new Chart(ctx, {
         type: 'doughnut',
         data: {
+          labels: ['Ahorrado', 'Gastado'],
           datasets: [{
             data: [filled, remaining],
             backgroundColor: [color, GRID_LINE],
+            hoverBackgroundColor: [color + 'DD', '#243049'],
             borderWidth: 0,
             cutout: '78%',
             circumference: 360,
@@ -835,7 +878,17 @@
         },
         options: {
           responsive: true, maintainAspectRatio: false, cutout: '78%',
-          plugins: { tooltip: { enabled: false } },
+          plugins: {
+            tooltip: {
+              callbacks: {
+                title: ctx => ctx[0].label,
+                label: ctx => {
+                  if (ctx.dataIndex === 0) return `${fmtPct(filled)} · ${fmtEUR.format(k.ahorro)}`;
+                  return `Ingresos ${fmtEUR.format(k.ingresos)} · Gastos ${fmtEUR.format(k.gastos)}`;
+                },
+              },
+            },
+          },
         },
       });
     }
@@ -850,6 +903,7 @@
           datasets: [{
             data: daily.map(d => d.daily),
             backgroundColor: colors,
+            hoverBackgroundColor: colors.map(c => c + 'DD'),
             borderRadius: 4,
             borderSkipped: false,
             borderWidth: 0,
@@ -859,11 +913,26 @@
         },
         options: {
           responsive: true, maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false, axis: 'x' },
           plugins: {
             tooltip: {
+              position: 'nearest',
               callbacks: {
-                title: ctx => `Día ${ctx[0].label}`,
-                label: ctx => fmtEUR.format(ctx.parsed.y),
+                title: ctx => {
+                  const day = ctx[0].label;
+                  const [y, m] = selectedMonth.split('-');
+                  const w = weekIndexOfDay(parseInt(day, 10)) + 1;
+                  return `${day.padStart(2, '0')}/${m}/${y} · Sem ${w}`;
+                },
+                label: ctx => ctx.parsed.y > 0 ? `Gasto: ${fmtEUR.format(ctx.parsed.y)}` : 'Sin gasto este día',
+                afterLabel: ctx => {
+                  const day = parseInt(ctx.label, 10);
+                  const [y, m] = selectedMonth.split('-');
+                  const dateIso = `${y}-${m}-${String(day).padStart(2, '0')}`;
+                  const items = MOVEMENTS.filter(x => x.tipo === 'Gasto' && x.fecha === dateIso);
+                  if (items.length === 0) return null;
+                  return items.map(x => `· ${x.categoria}: ${escapeHtml(x.descripcion || '')}`).join('\n');
+                },
               },
             },
           },
@@ -872,6 +941,7 @@
             y: { grid: { color: GRID_LINE, drawTicks: false }, border: { display: false }, ticks: { color: MUTED, callback: v => fmtEURcompact(v), font: { size: 10 } } },
           },
         },
+        plugins: [hoverGuide],
       });
     }
 
@@ -889,7 +959,7 @@
       renderTop10(top);
       renderMovementsTable(movsMonth);
       renderDailyChart(daily);
-      renderPctAhorroChart(k.pct);
+      renderPctAhorroChart(k.pct, k);
       renderWeeklyChart(daily);
 
       document.getElementById('donut-side-gastado').textContent = fmtEUR.format(k.gastos);
