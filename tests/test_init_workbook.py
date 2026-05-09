@@ -58,3 +58,58 @@ def test_movimientos_has_data_validations(tmp_path: Path):
     dv_ranges = [str(dv.sqref) for dv in ws.data_validations.dataValidation]
     assert any("B" in r for r in dv_ranges), f"Missing Tipo validation, got {dv_ranges}"
     assert any("C" in r for r in dv_ranges), f"Missing Categoría validation, got {dv_ranges}"
+
+
+def test_aux_has_selected_month_and_kpi_formulas(tmp_path: Path):
+    out = tmp_path / "gastos.xlsx"
+    create_workbook(out)
+
+    wb = openpyxl.load_workbook(out)
+    aux = wb["_aux"]
+
+    # Selected month is driven from Dashboard
+    assert aux["B1"].value == "=Dashboard!B1"
+
+    # KPIs use SUMIFS over tblMov filtered by month
+    ingresos = aux["D1"].value or ""
+    gastos = aux["D2"].value or ""
+    assert "SUMIFS" in ingresos.upper()
+    assert "tblMov" in ingresos
+    assert "SUMIFS" in gastos.upper()
+
+    # Ahorro is Ingresos - Gastos (or arithmetic of D1/D2)
+    ahorro = aux["D3"].value or ""
+    assert "D1" in ahorro and "D2" in ahorro
+
+    # % ahorro guards against /0
+    pct = aux["D4"].value or ""
+    assert "SI.ERROR" in pct.upper() or "IFERROR" in pct.upper()
+
+
+def test_aux_category_block_has_ten_rows(tmp_path: Path):
+    out = tmp_path / "gastos.xlsx"
+    create_workbook(out)
+
+    wb = openpyxl.load_workbook(out)
+    aux = wb["_aux"]
+
+    cats = [aux.cell(row=r, column=6).value for r in range(2, 12)]
+    sums = [aux.cell(row=r, column=7).value for r in range(2, 12)]
+    assert all(cats), f"Missing category labels: {cats}"
+    assert all(s and "SUMIFS" in s.upper() for s in sums), f"Missing SUMIFS: {sums}"
+
+
+def test_aux_monthly_evolution_block_has_twelve_rows(tmp_path: Path):
+    out = tmp_path / "gastos.xlsx"
+    create_workbook(out)
+
+    wb = openpyxl.load_workbook(out)
+    aux = wb["_aux"]
+
+    # Row 2 is the most recent month, row 13 is 11 months earlier (rolling window)
+    months = [aux.cell(row=r, column=9).value for r in range(2, 14)]
+    ingresos = [aux.cell(row=r, column=10).value for r in range(2, 14)]
+    gastos = [aux.cell(row=r, column=11).value for r in range(2, 14)]
+    assert all(m for m in months), f"Missing month labels: {months}"
+    assert all("SUMIFS" in (s or "").upper() for s in ingresos)
+    assert all("SUMIFS" in (s or "").upper() for s in gastos)

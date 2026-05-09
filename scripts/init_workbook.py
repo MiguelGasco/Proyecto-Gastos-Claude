@@ -76,6 +76,137 @@ def _add_validations(ws_mov) -> None:
     ws_mov.add_data_validation(dv_cat)
 
 
+def _build_aux(ws) -> None:
+    # --- B1: selected month (driven by Dashboard!B1, which user picks) ---
+    ws["A1"] = "Mes seleccionado"
+    ws["B1"] = "=Dashboard!B1"
+    ws["B1"].number_format = "dd/mm/yyyy"
+    ws["A2"] = "Etiqueta"
+    ws["B2"] = '=TEXT(B1,"mm/yyyy")'
+
+    # --- KPIs ---
+    # Date range filter: >= B1 (first of month) and < EOMonth(B1)+1
+    month_start = "$B$1"
+    month_end_excl = 'DATE(YEAR($B$1),MONTH($B$1)+1,1)'
+
+    ws["C1"] = "Ingresos mes"
+    ws["D1"] = (
+        f'=SUMIFS(tblMov[Importe],tblMov[Tipo],"Ingreso",'
+        f'tblMov[Fecha],">="&{month_start},'
+        f'tblMov[Fecha],"<"&{month_end_excl})'
+    )
+    ws["C2"] = "Gastos mes"
+    ws["D2"] = (
+        f'=SUMIFS(tblMov[Importe],tblMov[Tipo],"Gasto",'
+        f'tblMov[Fecha],">="&{month_start},'
+        f'tblMov[Fecha],"<"&{month_end_excl})'
+    )
+    ws["C3"] = "Ahorro neto"
+    ws["D3"] = "=D1-D2"
+    ws["C4"] = "% ahorro"
+    ws["D4"] = "=IFERROR(D3/D1,0)"
+
+    for r in (1, 2, 3):
+        ws.cell(row=r, column=4).number_format = '#,##0.00 "€"'
+    ws["D4"].number_format = "0.0%"
+
+    # --- Category-of-month block (F1:G11) ---
+    ws["F1"] = "Categoría"
+    ws["G1"] = "Total mes"
+    for i, cat in enumerate(CATEGORIES["Gasto"], start=2):
+        ws.cell(row=i, column=6, value=cat)
+        ws.cell(
+            row=i,
+            column=7,
+            value=(
+                f'=SUMIFS(tblMov[Importe],tblMov[Tipo],"Gasto",'
+                f'tblMov[Categoría],F{i},'
+                f'tblMov[Fecha],">="&{month_start},'
+                f'tblMov[Fecha],"<"&{month_end_excl})'
+            ),
+        )
+        ws.cell(row=i, column=7).number_format = '#,##0.00 "€"'
+
+    # --- Monthly evolution block (I1:L13), rolling 12 months ending at selected ---
+    ws["I1"] = "Mes"
+    ws["J1"] = "Ingresos"
+    ws["K1"] = "Gastos"
+    ws["L1"] = "Ahorro"
+    for offset in range(12):
+        r = 2 + offset
+        # offset 0 = selected month, offset 11 = 11 months earlier
+        ws.cell(
+            row=r,
+            column=9,
+            value=f'=TEXT(DATE(YEAR($B$1),MONTH($B$1)-{offset},1),"mm/yyyy")',
+        )
+        start_ref = f'DATE(YEAR($B$1),MONTH($B$1)-{offset},1)'
+        end_ref = f'DATE(YEAR($B$1),MONTH($B$1)-{offset}+1,1)'
+        ws.cell(
+            row=r,
+            column=10,
+            value=(
+                f'=SUMIFS(tblMov[Importe],tblMov[Tipo],"Ingreso",'
+                f'tblMov[Fecha],">="&{start_ref},'
+                f'tblMov[Fecha],"<"&{end_ref})'
+            ),
+        )
+        ws.cell(
+            row=r,
+            column=11,
+            value=(
+                f'=SUMIFS(tblMov[Importe],tblMov[Tipo],"Gasto",'
+                f'tblMov[Fecha],">="&{start_ref},'
+                f'tblMov[Fecha],"<"&{end_ref})'
+            ),
+        )
+        ws.cell(row=r, column=12, value=f"=J{r}-K{r}")
+        for c in (10, 11, 12):
+            ws.cell(row=r, column=c).number_format = '#,##0.00 "€"'
+
+    # --- Top-5 block (N1:P6). Uses LARGE + INDEX/MATCH on the static table range ---
+    ws["N1"] = "Fecha"
+    ws["O1"] = "Descripción"
+    ws["P1"] = "Importe"
+    for i in range(5):
+        r = 2 + i
+        rank = i + 1
+        # Importe (P): rank-th largest of Importe in the month, type=Gasto
+        ws.cell(
+            row=r,
+            column=16,
+            value=(
+                f'=IFERROR(LARGE(IF((Movimientos!$B$2:$B$1000="Gasto")*'
+                f'(Movimientos!$A$2:$A$1000>=$B$1)*'
+                f'(Movimientos!$A$2:$A$1000<{month_end_excl}),'
+                f'Movimientos!$D$2:$D$1000),{rank}),"")'
+            ),
+        )
+        # Fecha (N) and Descripción (O): match by the importe found in P
+        ws.cell(
+            row=r,
+            column=14,
+            value=(
+                f'=IFERROR(INDEX(Movimientos!$A$2:$A$1000,'
+                f'MATCH(P{r},Movimientos!$D$2:$D$1000,0)),"")'
+            ),
+        )
+        ws.cell(
+            row=r,
+            column=15,
+            value=(
+                f'=IFERROR(INDEX(Movimientos!$E$2:$E$1000,'
+                f'MATCH(P{r},Movimientos!$D$2:$D$1000,0)),"")'
+            ),
+        )
+        ws.cell(row=r, column=14).number_format = "dd/mm/yyyy"
+        ws.cell(row=r, column=16).number_format = '#,##0.00 "€"'
+
+    ws.column_dimensions["A"].width = 18
+    ws.column_dimensions["I"].width = 12
+    ws.column_dimensions["O"].width = 30
+
+
 def create_workbook(path: Path) -> None:
     path = Path(path)
     if path.exists():
@@ -93,6 +224,7 @@ def create_workbook(path: Path) -> None:
     _build_movimientos(wb["Movimientos"])
     _build_categorias(wb["Categorías"])
     _add_validations(wb["Movimientos"])
+    _build_aux(wb["_aux"])
 
     wb.save(path)
 
