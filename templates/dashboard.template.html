@@ -335,10 +335,10 @@
     .top10 li {
       counter-increment: top10;
       display: grid;
-      grid-template-columns: 22px 1fr auto;
+      grid-template-columns: 22px 1fr 64px;
       align-items: center;
-      gap: 12px;
-      padding: 10px 0;
+      gap: 14px;
+      padding: 12px 0;
       border-bottom: 1px solid var(--card-border);
     }
     .top10 li:last-child { border-bottom: none; }
@@ -353,7 +353,7 @@
     .top10 .item-text {
       display: flex;
       flex-direction: column;
-      gap: 5px;
+      gap: 6px;
       min-width: 0;
     }
     .top10 .item-name {
@@ -381,8 +381,44 @@
       font-size: 13px;
       font-weight: 600;
       font-variant-numeric: tabular-nums;
-      min-width: 56px;
       text-align: right;
+    }
+    .top10 .empty-row {
+      grid-template-columns: 1fr;
+      padding: 18px 0;
+    }
+    .top10 .empty-row::before { content: none; }
+
+    /* Pagination */
+    .pagination {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid var(--card-border);
+    }
+    .pag-btn {
+      background: transparent;
+      color: var(--ink);
+      border: 1px solid var(--card-border);
+      border-radius: 6px;
+      padding: 6px 14px;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+      color-scheme: dark;
+    }
+    .pag-btn:hover:not(:disabled) { border-color: var(--mint); color: var(--mint); }
+    .pag-btn:disabled { color: var(--muted); cursor: not-allowed; opacity: 0.4; }
+    .pag-info {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 500;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.3px;
     }
 
     /* Daily movements table */
@@ -566,6 +602,11 @@
           </thead>
           <tbody id="movements-tbody"></tbody>
         </table>
+        <div class="pagination" id="movements-pagination" style="display: none;">
+          <button class="pag-btn" id="mov-prev" type="button">Anterior</button>
+          <span class="pag-info" id="mov-page-info">1 / 1</span>
+          <button class="pag-btn" id="mov-next" type="button">Siguiente</button>
+        </div>
       </div>
     </section>
 
@@ -659,6 +700,8 @@
       return [...set].sort().reverse();
     })();
     let selectedMonth = allYearMonths[0];
+    let movementsPage = 0;
+    const MOVEMENTS_PAGE_SIZE = 5;
 
     // ===== Chart instances =====
     let chartDaily, chartPctAhorro, chartWeekly;
@@ -738,8 +781,16 @@
       yearSel.value = curYear;
       monthSel.innerHTML = MONTHS_ES.map((n, i) => `<option value="${String(i + 1).padStart(2, '0')}">${n}</option>`).join('');
       monthSel.value = curMonth;
-      yearSel.addEventListener('change', () => { selectedMonth = `${yearSel.value}-${monthSel.value}`; rerender(); });
-      monthSel.addEventListener('change', () => { selectedMonth = `${yearSel.value}-${monthSel.value}`; rerender(); });
+      yearSel.addEventListener('change', () => { selectedMonth = `${yearSel.value}-${monthSel.value}`; movementsPage = 0; rerender(); });
+      monthSel.addEventListener('change', () => { selectedMonth = `${yearSel.value}-${monthSel.value}`; movementsPage = 0; rerender(); });
+    }
+    function attachPaginationHandlers() {
+      document.getElementById('mov-prev').addEventListener('click', () => {
+        if (movementsPage > 0) { movementsPage--; rerender(); }
+      });
+      document.getElementById('mov-next').addEventListener('click', () => {
+        movementsPage++; rerender();
+      });
     }
     function renderStats(k) {
       document.getElementById('stat-global-amount').textContent = `${fmtEURcompact(k.gastos)} / ${fmtEURcompact(k.ingresos)}`;
@@ -763,12 +814,11 @@
     function renderTop10(rows) {
       const ol = document.getElementById('top10-list');
       if (rows.length === 0) {
-        ol.innerHTML = `<li style="grid-template-columns: 1fr;"><div class="empty">Sin gastos este mes</div></li>`;
+        ol.innerHTML = `<li class="empty-row"><div class="empty">Sin gastos este mes</div></li>`;
         return;
       }
       ol.innerHTML = rows.map(r => `
         <li>
-          <span></span>
           <div class="item-text">
             <div class="item-name">${escapeHtml(r.categoria)} · ${fmtEUR.format(r.total)}</div>
             <div class="item-bar"><div class="item-bar-fill" style="width: ${(r.pct * 100).toFixed(1)}%"></div></div>
@@ -779,12 +829,22 @@
     }
     function renderMovementsTable(movsMonth) {
       const tbody = document.getElementById('movements-tbody');
-      if (movsMonth.length === 0) {
+      const pag = document.getElementById('movements-pagination');
+      const sorted = [...movsMonth].sort((a, b) => b.fecha.localeCompare(a.fecha) || b.id - a.id);
+
+      if (sorted.length === 0) {
         tbody.innerHTML = `<tr><td colspan="6" class="empty">Sin movimientos este mes</td></tr>`;
+        pag.style.display = 'none';
         return;
       }
-      const sorted = [...movsMonth].sort((a, b) => b.fecha.localeCompare(a.fecha) || b.id - a.id);
-      tbody.innerHTML = sorted.map(m => {
+
+      const totalPages = Math.max(1, Math.ceil(sorted.length / MOVEMENTS_PAGE_SIZE));
+      if (movementsPage >= totalPages) movementsPage = totalPages - 1;
+      if (movementsPage < 0) movementsPage = 0;
+      const start = movementsPage * MOVEMENTS_PAGE_SIZE;
+      const slice = sorted.slice(start, start + MOVEMENTS_PAGE_SIZE);
+
+      tbody.innerHTML = slice.map(m => {
         const w = weekIndexOfDay(dayOf(m.fecha));
         const tipoClass = m.tipo === 'Ingreso' ? 'amount-ingreso' : 'amount-gasto';
         const sign = m.tipo === 'Ingreso' ? '+' : '−';
@@ -799,6 +859,15 @@
           </tr>
         `;
       }).join('');
+
+      if (sorted.length <= MOVEMENTS_PAGE_SIZE) {
+        pag.style.display = 'none';
+      } else {
+        pag.style.display = 'flex';
+        document.getElementById('mov-page-info').textContent = `${movementsPage + 1} / ${totalPages} · ${sorted.length} movimientos`;
+        document.getElementById('mov-prev').disabled = movementsPage === 0;
+        document.getElementById('mov-next').disabled = movementsPage >= totalPages - 1;
+      }
     }
     function escapeHtml(s) { const d = document.createElement('div'); d.textContent = String(s); return d.innerHTML; }
 
@@ -967,6 +1036,7 @@
 
     // ===== Boot =====
     renderSelectors();
+    attachPaginationHandlers();
     rerender();
   </script>
 </body>
