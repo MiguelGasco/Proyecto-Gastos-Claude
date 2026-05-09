@@ -484,7 +484,7 @@
 
       <div class="card line-card">
         <div class="line-card-head">
-          <div class="card-title">% Gasto consumido del mes (acumulado)</div>
+          <div class="card-title">Gasto acumulado del mes</div>
         </div>
         <div class="chart-container"><canvas id="chart-daily"></canvas></div>
       </div>
@@ -780,13 +780,15 @@
       const grad = c.createLinearGradient(0, 0, 0, 220);
       grad.addColorStop(0, MINT + '55');
       grad.addColorStop(1, MINT + '00');
+      const maxCumulative = Math.max(...daily.map(d => d.cumulative), 0);
+      const yMax = maxCumulative > 0 ? maxCumulative * 1.15 : 100;
       chartDaily = new Chart(ctx, {
         type: 'line',
         data: {
           labels: daily.map(d => String(d.day)),
           datasets: [{
-            label: '% acumulado',
-            data: daily.map(d => d.pctOfMonth * 100),
+            label: 'Acumulado',
+            data: daily.map(d => d.cumulative),
             borderColor: MINT,
             backgroundColor: grad,
             tension: 0.35, fill: true, borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 5,
@@ -799,13 +801,13 @@
             tooltip: {
               callbacks: {
                 title: ctx => `Día ${ctx[0].label}`,
-                label: ctx => `${ctx.parsed.y.toFixed(1)} % del gasto del mes`,
+                label: ctx => fmtEUR.format(ctx.parsed.y),
               },
             },
           },
           scales: {
             x: { grid: { display: false }, ticks: { color: MUTED, maxTicksLimit: 12, font: { size: 10 } } },
-            y: { grid: { color: GRID_LINE, drawTicks: false }, border: { display: false }, ticks: { color: MUTED, callback: v => `${v}%`, stepSize: 25, font: { size: 10 } }, min: 0, max: 100 },
+            y: { grid: { color: GRID_LINE, drawTicks: false }, border: { display: false }, ticks: { color: MUTED, callback: v => fmtEURcompact(v), font: { size: 10 } }, min: 0, max: yMax, beginAtZero: true },
           },
         },
       });
