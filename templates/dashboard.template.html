@@ -753,19 +753,28 @@
     const filterByMonth = (movs, ym) => movs.filter(m => ymOf(m.fecha) === ym);
     const sumBy = (movs, pred) => movs.filter(pred).reduce((s, m) => s + m.importe, 0);
 
-    function computeKpis(movsMonth, ym) {
+    function computeKpis(movsMonth) {
       const ingresos = sumBy(movsMonth, m => m.tipo === 'Ingreso');
       const gastos = sumBy(movsMonth, m => m.tipo === 'Gasto');
-      // Dinero retirado para inversiones este mes (sale del cash flow disponible)
-      const dedicadoInv = (DEPOSITS_INV || [])
-        .filter(d => d.fecha && d.fecha.slice(0, 7) === ym)
-        .reduce((s, d) => s + (d.total_retirado || 0), 0);
-      const ahorro = ingresos - gastos - dedicadoInv;
+      const inversiones = sumBy(movsMonth, m => m.tipo === 'Gasto' && m.categoria === 'Inversiones');
       return {
-        ingresos, gastos, ahorro,
-        dedicadoInv,
-        pct: ingresos > 0 ? ahorro / ingresos : 0,
+        ingresos, gastos,
+        inversiones,
+        ahorro: ingresos - gastos,
+        pct: ingresos > 0 ? (ingresos - gastos) / ingresos : 0,
       };
+    }
+    function buildVirtualInvestmentMovements(ym) {
+      return (DEPOSITS_INV || [])
+        .filter(d => d.fecha && d.fecha.slice(0, 7) === ym)
+        .map(d => ({
+          id: 'inv-' + d.fecha,
+          fecha: d.fecha,
+          tipo: 'Gasto',
+          categoria: 'Inversiones',
+          importe: d.total_retirado,
+          descripcion: d.descripcion || 'Depósito a cuenta de inversión',
+        }));
     }
     function computeDaily(movsMonth, ym) {
       const [y, m] = ym.split('-').map(n => parseInt(n, 10));
@@ -786,7 +795,9 @@
       const map = {};
       for (const cat of CATEGORIES.Gasto) map[cat] = 0;
       for (const m of movsMonth) {
-        if (m.tipo === 'Gasto' && map.hasOwnProperty(m.categoria)) map[m.categoria] += m.importe;
+        if (m.tipo !== 'Gasto') continue;
+        if (!map.hasOwnProperty(m.categoria)) map[m.categoria] = 0;
+        map[m.categoria] += m.importe;
       }
       const total = Object.values(map).reduce((s, v) => s + v, 0);
       return Object.entries(map)
@@ -853,8 +864,8 @@
       ahorroEl.textContent = fmtEUR.format(k.ahorro);
       ahorroEl.style.color = k.ahorro >= 0 ? 'var(--mint)' : 'var(--negative)';
       const ahorroSub = document.getElementById('stat-ahorro-sub');
-      if (k.dedicadoInv > 0) {
-        ahorroSub.textContent = `−${fmtEUR.format(k.dedicadoInv)} a inversión`;
+      if (k.inversiones > 0) {
+        ahorroSub.textContent = `Incluye ${fmtEUR.format(k.inversiones)} en Inversiones`;
         ahorroSub.style.color = 'var(--muted)';
       } else {
         ahorroSub.textContent = '';
@@ -1057,9 +1068,12 @@
                   const day = parseInt(ctx.label, 10);
                   const [y, m] = selectedMonth.split('-');
                   const dateIso = `${y}-${m}-${String(day).padStart(2, '0')}`;
-                  const items = MOVEMENTS.filter(x => x.tipo === 'Gasto' && x.fecha === dateIso);
-                  if (items.length === 0) return null;
-                  return items.map(x => `· ${x.categoria}: ${escapeHtml(x.descripcion || '')}`).join('\n');
+                  const items = MOVEMENTS.filter(x => x.tipo === 'Gasto' && x.fecha === dateIso)
+                    .map(x => `· ${x.categoria}: ${escapeHtml(x.descripcion || '')}`);
+                  const invs = (DEPOSITS_INV || []).filter(d => d.fecha === dateIso)
+                    .map(d => `· Inversiones: ${escapeHtml(d.descripcion || 'Depósito')}`);
+                  const all = [...items, ...invs];
+                  return all.length > 0 ? all.join('\n') : null;
                 },
               },
             },
@@ -1076,10 +1090,12 @@
     // ===== Main rerender =====
     function rerender() {
       const movsMonth = filterByMonth(MOVEMENTS, selectedMonth);
-      const k = computeKpis(movsMonth, selectedMonth);
-      const daily = computeDaily(movsMonth, selectedMonth);
-      const weeks = computeWeeklyBreakdown(movsMonth, selectedMonth);
-      const top = computeTopCategorias(movsMonth, 10);
+      const virtualInv = buildVirtualInvestmentMovements(selectedMonth);
+      const movsForAnalytics = [...movsMonth, ...virtualInv];
+      const k = computeKpis(movsForAnalytics);
+      const daily = computeDaily(movsForAnalytics, selectedMonth);
+      const weeks = computeWeeklyBreakdown(movsForAnalytics, selectedMonth);
+      const top = computeTopCategorias(movsForAnalytics, 10);
 
       renderHeader();
       renderStats(k);
