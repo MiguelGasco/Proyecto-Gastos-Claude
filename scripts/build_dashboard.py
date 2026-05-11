@@ -13,13 +13,34 @@ from scripts.categories import CATEGORIES
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 TEMPLATE_PATH = PROJECT_ROOT / "templates" / "dashboard.template.html"
 DEFAULT_DATA_PATH = PROJECT_ROOT / "data" / "movements.json"
+DEFAULT_INVESTMENTS_PATH = PROJECT_ROOT / "data" / "investments.json"
 DEFAULT_OUTPUT_PATH = PROJECT_ROOT / "dashboard.html"
+
+
+def _load_investment_deposits(investments_path: Path) -> list:
+    """Return list of {fecha, total_retirado} for each deposit to investment account.
+    Each deposit represents money leaving the cash flow → reduces ahorro for that month."""
+    if not investments_path.exists():
+        return []
+    try:
+        store = json.loads(investments_path.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+    out = []
+    for d in store.get("deposits", []):
+        out.append({
+            "fecha": d.get("fecha"),
+            "total_retirado": float(d.get("importe_neto", 0)) + float(d.get("comision", 0)),
+            "descripcion": d.get("descripcion", ""),
+        })
+    return out
 
 
 def render(
     data_path: Path = DEFAULT_DATA_PATH,
     output_path: Path = DEFAULT_OUTPUT_PATH,
     template_path: Path = TEMPLATE_PATH,
+    investments_path: Path = DEFAULT_INVESTMENTS_PATH,
 ) -> Path:
     template = template_path.read_text(encoding="utf-8")
     if data_path.exists():
@@ -27,13 +48,16 @@ def render(
         movements = store.get("movements", [])
     else:
         movements = []
+    deposits_inv = _load_investment_deposits(investments_path)
     movements_json = json.dumps(movements, ensure_ascii=False)
     categories_json = json.dumps(CATEGORIES, ensure_ascii=False)
+    deposits_inv_json = json.dumps(deposits_inv, ensure_ascii=False)
     generated_at = datetime.now().strftime("%d/%m/%Y %H:%M")
     html = (
         template
         .replace("__MOVEMENTS_JSON__", movements_json)
         .replace("__CATEGORIES_JSON__", categories_json)
+        .replace("__DEPOSITS_INV_JSON__", deposits_inv_json)
         .replace("__GENERATED_AT__", generated_at)
     )
     output_path.write_text(html, encoding="utf-8")

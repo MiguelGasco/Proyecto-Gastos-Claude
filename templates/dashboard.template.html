@@ -615,6 +615,7 @@
         <div class="stat-block">
           <div class="stat-label">Ahorro neto</div>
           <div class="stat-value" id="stat-ahorro">—</div>
+          <div class="stat-sub" id="stat-ahorro-sub"></div>
         </div>
       </div>
 
@@ -660,6 +661,7 @@
     // ===== Data injected by build_dashboard.py =====
     const MOVEMENTS = __MOVEMENTS_JSON__;
     const CATEGORIES = __CATEGORIES_JSON__;
+    const DEPOSITS_INV = __DEPOSITS_INV_JSON__;
     const GENERATED_AT = "__GENERATED_AT__";
 
     // ===== Constants =====
@@ -751,10 +753,19 @@
     const filterByMonth = (movs, ym) => movs.filter(m => ymOf(m.fecha) === ym);
     const sumBy = (movs, pred) => movs.filter(pred).reduce((s, m) => s + m.importe, 0);
 
-    function computeKpis(movsMonth) {
+    function computeKpis(movsMonth, ym) {
       const ingresos = sumBy(movsMonth, m => m.tipo === 'Ingreso');
       const gastos = sumBy(movsMonth, m => m.tipo === 'Gasto');
-      return { ingresos, gastos, ahorro: ingresos - gastos, pct: ingresos > 0 ? (ingresos - gastos) / ingresos : 0 };
+      // Dinero retirado para inversiones este mes (sale del cash flow disponible)
+      const dedicadoInv = (DEPOSITS_INV || [])
+        .filter(d => d.fecha && d.fecha.slice(0, 7) === ym)
+        .reduce((s, d) => s + (d.total_retirado || 0), 0);
+      const ahorro = ingresos - gastos - dedicadoInv;
+      return {
+        ingresos, gastos, ahorro,
+        dedicadoInv,
+        pct: ingresos > 0 ? ahorro / ingresos : 0,
+      };
     }
     function computeDaily(movsMonth, ym) {
       const [y, m] = ym.split('-').map(n => parseInt(n, 10));
@@ -841,6 +852,13 @@
       const ahorroEl = document.getElementById('stat-ahorro');
       ahorroEl.textContent = fmtEUR.format(k.ahorro);
       ahorroEl.style.color = k.ahorro >= 0 ? 'var(--mint)' : 'var(--negative)';
+      const ahorroSub = document.getElementById('stat-ahorro-sub');
+      if (k.dedicadoInv > 0) {
+        ahorroSub.textContent = `−${fmtEUR.format(k.dedicadoInv)} a inversión`;
+        ahorroSub.style.color = 'var(--muted)';
+      } else {
+        ahorroSub.textContent = '';
+      }
     }
     function renderWeeklyProgress(weeks, totalIngresos) {
       const container = document.getElementById('weekly-progress');
@@ -1058,7 +1076,7 @@
     // ===== Main rerender =====
     function rerender() {
       const movsMonth = filterByMonth(MOVEMENTS, selectedMonth);
-      const k = computeKpis(movsMonth);
+      const k = computeKpis(movsMonth, selectedMonth);
       const daily = computeDaily(movsMonth, selectedMonth);
       const weeks = computeWeeklyBreakdown(movsMonth, selectedMonth);
       const top = computeTopCategorias(movsMonth, 10);
