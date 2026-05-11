@@ -25,8 +25,11 @@ def render(
     template = template_path.read_text(encoding="utf-8")
 
     operations = []
+    deposits = []
     if investments_path.exists():
-        operations = load_investments(investments_path).get("operations", [])
+        store = load_investments(investments_path)
+        operations = store.get("operations", [])
+        deposits = store.get("deposits", [])
 
     quotes = {}
     quotes_updated = ""
@@ -37,12 +40,14 @@ def render(
         quotes_updated = qstore.get("updated_at", "")
 
     operations_json = json.dumps(operations, ensure_ascii=False)
+    deposits_json = json.dumps(deposits, ensure_ascii=False)
     quotes_json = json.dumps(quotes, ensure_ascii=False)
     generated_at = datetime.now().strftime("%d/%m/%Y %H:%M")
 
     html = (
         template
         .replace("__OPERATIONS_JSON__", operations_json)
+        .replace("__DEPOSITS_JSON__", deposits_json)
         .replace("__QUOTES_JSON__", quotes_json)
         .replace("__QUOTES_UPDATED__", quotes_updated)
         .replace("__GENERATED_AT__", generated_at)

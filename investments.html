@@ -343,11 +343,11 @@
 
   <script>
     // ===== Data injected by build_investments.py =====
-    const OPERATIONS = __OPERATIONS_JSON__;
-    const DEPOSITS = __DEPOSITS_JSON__;
-    const QUOTES = __QUOTES_JSON__;
-    const QUOTES_UPDATED_AT = "__QUOTES_UPDATED__";
-    const GENERATED_AT = "__GENERATED_AT__";
+    const OPERATIONS = [{"id": 1, "fecha": "2026-05-10", "tipo": "compra", "ticker": "EOG", "nombre": "EOG Resources", "unidades": 1.253357, "precio": 111.7, "comision": 1.0, "moneda": "EUR"}, {"id": 2, "fecha": "2026-05-10", "tipo": "compra", "ticker": "IDR.MC", "nombre": "Indra Sistemas", "unidades": 2.806173, "precio": 49.89, "comision": 1.28, "moneda": "EUR"}];
+    const DEPOSITS = [{"id": 1, "fecha": "2026-05-10", "importe_neto": 800.0, "comision": 8.0, "descripcion": "Retirada de cuenta corriente"}];
+    const QUOTES = {"EOG": {"precio": 111.7, "moneda": "EUR", "cambio_pct_1d": 0.0}, "IDR.MC": {"precio": 49.89, "moneda": "EUR", "cambio_pct_1d": 0.0}};
+    const QUOTES_UPDATED_AT = "10/05/2026 (precio de compra, pendiente yfinance)";
+    const GENERATED_AT = "11/05/2026 15:28";
 
     // ===== Constants =====
     const PALETTE = ['#4DD494', '#4DD0E1', '#B968D9', '#FF4D7E', '#FFB74D', '#7C4DFF', '#FF8A65', '#26C6DA', '#AB47BC', '#FFC107'];
