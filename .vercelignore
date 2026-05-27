@@ -1,0 +1,12 @@
+scripts/
+tests/
+data/
+.venv/
+requirements.txt
+pyproject.toml
+*.pyc
+__pycache__/
+.pytest_cache/
+.env
+.claude/
+logs/
