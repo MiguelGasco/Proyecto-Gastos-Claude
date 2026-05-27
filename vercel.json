@@ -1,0 +1,7 @@
+{
+  "buildCommand": "echo 'Static HTML files, no build needed'",
+  "outputDirectory": ".",
+  "rewrites": [
+    { "source": "/", "destination": "/dashboard.html" }
+  ]
+}
