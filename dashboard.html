@@ -1,0 +1,1130 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Control de Gastos</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0A0E1A;
+      --card: #131A2A;
+      --card-hover: #182137;
+      --card-border: #1F2A3F;
+      --grid-line: #1A2333;
+      --ink: #FFFFFF;
+      --muted: #7A8499;
+      --muted-strong: #9AA5BD;
+      /* Weekly palette — matches the Etsy reference */
+      --w1: #FF4D7E;   /* magenta/pink */
+      --w2: #B968D9;   /* purple */
+      --w3: #4DD0E1;   /* cyan */
+      --w4: #FFB74D;   /* orange */
+      --w5: #4DD494;   /* green/mint */
+      /* Aliases */
+      --mint: #4DD494;
+      --positive: #4DD494;
+      --negative: #FF5252;
+    }
+    html { color-scheme: dark; }
+    body {
+      background: var(--bg);
+      color: var(--ink);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-weight: 400;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    .dashboard {
+      max-width: 1500px;
+      margin: 0 auto;
+      padding: 28px;
+    }
+
+    /* ===== Top row: title-card | line chart | donut ===== */
+    .top-row {
+      display: grid;
+      grid-template-columns: 280px 1fr 320px;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+    .card {
+      background: var(--card);
+      border-radius: 14px;
+      padding: 22px;
+      border: 1px solid var(--card-border);
+      transition: border-color 0.15s;
+    }
+    .card:hover { border-color: var(--card-hover); }
+    .card-title {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1.8px;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+    .card-title.center { text-align: center; }
+
+    /* Title card (top-left) */
+    .title-card { display: flex; flex-direction: column; }
+    .title-main {
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      line-height: 1.2;
+    }
+    .title-sub {
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 6px;
+      text-transform: capitalize;
+      font-weight: 400;
+    }
+    .title-rule {
+      height: 1px;
+      background: var(--card-border);
+      margin: 18px -22px;
+    }
+    .settings-block { padding-top: 4px; }
+    .settings-label {
+      font-size: 9px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1.8px;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+    .settings-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .settings-key { color: var(--muted); font-size: 12px; }
+    .settings-val select {
+      background: var(--card);
+      color: var(--ink);
+      border: 1px solid var(--card-border);
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      outline: none;
+      min-width: 96px;
+      transition: border-color 0.15s;
+      color-scheme: dark;
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path fill='%237A8499' d='M0 0l5 6 5-6z'/></svg>");
+      background-repeat: no-repeat;
+      background-position: right 8px center;
+      padding-right: 24px;
+    }
+    .settings-val select:hover { border-color: var(--muted); }
+    .settings-val select:focus { border-color: var(--mint); }
+    .settings-val select option {
+      background: var(--card);
+      color: var(--ink);
+      padding: 6px 10px;
+    }
+    .nav-block { padding-top: 4px; padding-bottom: 14px; }
+    .nav-label {
+      font-size: 9px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1.8px;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+    .nav-pills { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .nav-pill {
+      display: flex; align-items: center; justify-content: center;
+      padding: 8px 4px;
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      text-decoration: none;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .nav-pill:hover { border-color: var(--mint); color: var(--mint); }
+    .nav-pill.active { background: var(--mint); color: #0A0E1A; border-color: var(--mint); cursor: default; }
+    .title-rule {
+      height: 1px;
+      background: var(--card-border);
+      margin: 14px -22px;
+    }
+
+    /* Line-chart card (top-center) */
+    .line-card { display: flex; flex-direction: column; }
+    .line-card-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .yticks { color: var(--muted); font-size: 10px; }
+    .chart-container { position: relative; height: 220px; }
+    .chart-container.tall { height: 360px; }
+    .chart-container.short { height: 200px; }
+    .chart-container.donut-big { height: 240px; }
+
+    /* Donut card (top-right) */
+    .donut-card {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+    .donut-card-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 14px;
+      margin-bottom: 10px;
+    }
+    .donut-side-stat {
+      text-align: left;
+      min-width: 100px;
+    }
+    .donut-side-stat .label {
+      font-size: 9px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .donut-side-stat .value {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--ink);
+      font-variant-numeric: tabular-nums;
+    }
+    .donut-wrapper { position: relative; }
+    .donut-center {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      pointer-events: none;
+    }
+    .donut-center-value {
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: -1px;
+      color: var(--mint);
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+    }
+    .donut-center-value.negative { color: var(--negative); }
+    .donut-center-label {
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 1.8px;
+      color: var(--muted);
+      margin-top: 6px;
+      font-weight: 600;
+    }
+
+    /* ===== Weekly overview row ===== */
+    .weekly-overview-card {
+      margin-bottom: 16px;
+    }
+    .weekly-overview-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 18px;
+    }
+    .week-legend {
+      display: flex;
+      gap: 18px;
+      align-items: center;
+    }
+    .week-legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+    }
+    .week-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+    .w1c { color: var(--w1); }
+    .w2c { color: var(--w2); }
+    .w3c { color: var(--w3); }
+    .w4c { color: var(--w4); }
+    .w5c { color: var(--w5); }
+    .w1bg { background: var(--w1); }
+    .w2bg { background: var(--w2); }
+    .w3bg { background: var(--w3); }
+    .w4bg { background: var(--w4); }
+    .w5bg { background: var(--w5); }
+
+    /* Stats row inside weekly overview */
+    .weekly-stats {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr 1fr 1fr 1fr;
+      gap: 24px;
+      margin-top: 22px;
+      padding-top: 20px;
+      border-top: 1px solid var(--card-border);
+    }
+    .stat-block .stat-label {
+      font-size: 9px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .stat-block .stat-value {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--ink);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.5px;
+    }
+    .stat-block .stat-sub {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 2px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Weekly progress (5 cards under the chart) */
+    .weekly-progress {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 12px;
+      margin-top: 18px;
+    }
+    .week-progress-cell {
+      text-align: center;
+      padding: 14px 10px;
+      background: var(--bg);
+      border-radius: 10px;
+      border: 1px solid var(--card-border);
+    }
+    .week-progress-cell .week-num {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 1.8px;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .week-progress-cell .week-amt {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--ink);
+      font-variant-numeric: tabular-nums;
+    }
+    .week-progress-cell .week-pct {
+      font-size: 11px;
+      margin-top: 4px;
+      font-weight: 500;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ===== Bottom row: top10 + movements ===== */
+    .bottom-row {
+      display: grid;
+      grid-template-columns: 1fr 1.2fr;
+      gap: 16px;
+      margin-top: 16px;
+    }
+    @media (max-width: 1100px) {
+      .bottom-row { grid-template-columns: 1fr; }
+      .top-row { grid-template-columns: 1fr; }
+      .weekly-stats { grid-template-columns: 1fr 1fr; }
+      .weekly-progress { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    /* Top 10 list with horizontal bars */
+    .top10 ol {
+      list-style: none;
+      counter-reset: top10;
+    }
+    .top10 li {
+      counter-increment: top10;
+      display: grid;
+      grid-template-columns: 22px 1fr 64px;
+      align-items: center;
+      gap: 14px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--card-border);
+    }
+    .top10 li:last-child { border-bottom: none; }
+    .top10 li::before {
+      content: counter(top10);
+      color: var(--muted);
+      font-size: 11px;
+      font-variant-numeric: tabular-nums;
+      font-weight: 500;
+      text-align: right;
+    }
+    .top10 .item-text {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 0;
+    }
+    .top10 .item-name {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--ink);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .top10 .item-bar {
+      height: 4px;
+      background: var(--card-border);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .top10 .item-bar-fill {
+      height: 100%;
+      background: var(--mint);
+      border-radius: 2px;
+      transition: width 0.3s ease;
+    }
+    .top10 .item-pct {
+      color: var(--mint);
+      font-size: 13px;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+    }
+    .top10 .empty-row {
+      grid-template-columns: 1fr;
+      padding: 18px 0;
+    }
+    .top10 .empty-row::before { content: none; }
+
+    /* Pagination */
+    .pagination {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid var(--card-border);
+    }
+    .pag-btn {
+      background: transparent;
+      color: var(--ink);
+      border: 1px solid var(--card-border);
+      border-radius: 6px;
+      padding: 6px 14px;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+      color-scheme: dark;
+    }
+    .pag-btn:hover:not(:disabled) { border-color: var(--mint); color: var(--mint); }
+    .pag-btn:disabled { color: var(--muted); cursor: not-allowed; opacity: 0.4; }
+    .pag-info {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 500;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.3px;
+    }
+
+    /* Daily movements table */
+    .movements-table { width: 100%; border-collapse: collapse; }
+    .movements-table thead th {
+      text-align: left;
+      font-size: 9px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--muted);
+      padding: 0 12px 12px;
+      border-bottom: 1px solid var(--card-border);
+    }
+    .movements-table tbody tr {
+      border-bottom: 1px solid var(--card-border);
+    }
+    .movements-table tbody tr:last-child { border-bottom: none; }
+    .movements-table td {
+      padding: 11px 12px;
+      font-size: 13px;
+      color: var(--ink);
+      vertical-align: middle;
+    }
+    .movements-table .col-date { color: var(--muted); font-variant-numeric: tabular-nums; width: 76px; }
+    .movements-table .col-week { width: 4px; padding: 0; }
+    .movements-table .week-mark {
+      display: block;
+      width: 3px;
+      height: 28px;
+      border-radius: 2px;
+      margin-left: 8px;
+    }
+    .movements-table .col-type {
+      font-size: 10px;
+      letter-spacing: 1.4px;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-weight: 600;
+      width: 84px;
+    }
+    .movements-table .col-cat {
+      color: var(--muted-strong);
+      font-size: 12px;
+      width: 130px;
+    }
+    .movements-table .col-desc {
+      color: var(--ink);
+    }
+    .movements-table .col-amount {
+      text-align: right;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      width: 110px;
+    }
+    .movements-table .amount-ingreso { color: var(--mint); }
+    .movements-table .amount-gasto { color: var(--ink); }
+    .empty {
+      color: var(--muted);
+      font-size: 13px;
+      padding: 24px 0;
+      text-align: center;
+      font-style: italic;
+    }
+
+    /* Footer */
+    footer {
+      margin-top: 32px;
+      padding-top: 18px;
+      border-top: 1px solid var(--card-border);
+      text-align: center;
+      color: var(--muted);
+      font-size: 10px;
+      letter-spacing: 0.5px;
+    }
+  </style>
+</head>
+<body>
+  <main class="dashboard">
+
+    <!-- Top row: title-card | line chart | donut -->
+    <section class="top-row">
+      <div class="card title-card">
+        <div class="title-main">CONTROL<br>DE GASTOS</div>
+        <div class="title-sub" id="subtitle">—</div>
+        <div class="title-rule"></div>
+        <div class="nav-block">
+          <div class="nav-label">Navegación</div>
+          <div class="nav-pills">
+            <a class="nav-pill active" href="dashboard.html">Gastos</a>
+            <a class="nav-pill" href="investments.html">Inversiones</a>
+          </div>
+        </div>
+        <div class="title-rule"></div>
+        <div class="settings-block">
+          <div class="settings-label">Ajustes</div>
+          <div class="settings-row">
+            <span class="settings-key">Año</span>
+            <span class="settings-val"><select id="year-select"></select></span>
+          </div>
+          <div class="settings-row">
+            <span class="settings-key">Mes</span>
+            <span class="settings-val"><select id="month-select"></select></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card line-card">
+        <div class="line-card-head">
+          <div class="card-title">Gasto acumulado del mes</div>
+          <div class="donut-side-stat">
+            <div class="label">Invertido</div>
+            <div class="value" id="line-side-invertido">—</div>
+          </div>
+        </div>
+        <div class="chart-container"><canvas id="chart-daily"></canvas></div>
+      </div>
+
+      <div class="card donut-card">
+        <div class="donut-card-head">
+          <div class="card-title">% Ahorro del mes</div>
+          <div class="donut-side-stat">
+            <div class="label">Gastado</div>
+            <div class="value" id="donut-side-gastado">—</div>
+          </div>
+        </div>
+        <div class="donut-wrapper">
+          <div class="chart-container donut-big"><canvas id="chart-pct-ahorro"></canvas></div>
+          <div class="donut-center">
+            <div class="donut-center-value" id="donut-pct-value">—</div>
+            <div class="donut-center-label">Ahorrado</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Weekly overview -->
+    <section class="card weekly-overview-card">
+      <div class="weekly-overview-head">
+        <div class="card-title">Gasto diario por semana</div>
+        <div class="week-legend">
+          <div class="week-legend-item w1c"><span class="week-dot w1bg"></span>Sem 1</div>
+          <div class="week-legend-item w2c"><span class="week-dot w2bg"></span>Sem 2</div>
+          <div class="week-legend-item w3c"><span class="week-dot w3bg"></span>Sem 3</div>
+          <div class="week-legend-item w4c"><span class="week-dot w4bg"></span>Sem 4</div>
+          <div class="week-legend-item w5c"><span class="week-dot w5bg"></span>Sem 5</div>
+        </div>
+      </div>
+      <div class="chart-container"><canvas id="chart-weekly-overview"></canvas></div>
+
+      <div class="weekly-stats">
+        <div class="stat-block">
+          <div class="stat-label">Progreso global</div>
+          <div class="stat-value" id="stat-global-amount">—</div>
+          <div class="stat-sub" id="stat-global-sub">—</div>
+        </div>
+        <div class="stat-block">
+          <div class="stat-label">Ingresos</div>
+          <div class="stat-value" id="stat-ingresos" style="color: var(--mint);">—</div>
+        </div>
+        <div class="stat-block">
+          <div class="stat-label">Gastos</div>
+          <div class="stat-value" id="stat-gastos">—</div>
+        </div>
+        <div class="stat-block">
+          <div class="stat-label">Inversiones</div>
+          <div class="stat-value" id="stat-inversiones">—</div>
+        </div>
+        <div class="stat-block">
+          <div class="stat-label">Ahorro neto</div>
+          <div class="stat-value" id="stat-ahorro">—</div>
+          <div class="stat-sub" id="stat-ahorro-sub"></div>
+        </div>
+      </div>
+
+      <div class="weekly-progress" id="weekly-progress"></div>
+    </section>
+
+    <!-- Bottom row: Top 10 + Daily movements -->
+    <section class="bottom-row">
+      <div class="card top10">
+        <div class="card-title">Top 10 categorías de gasto</div>
+        <ol id="top10-list"></ol>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Movimientos del mes</div>
+        <table class="movements-table">
+          <thead>
+            <tr>
+              <th class="col-week"></th>
+              <th class="col-date">Fecha</th>
+              <th class="col-type">Tipo</th>
+              <th class="col-cat">Categoría</th>
+              <th class="col-desc">Descripción</th>
+              <th class="col-amount">Importe</th>
+            </tr>
+          </thead>
+          <tbody id="movements-tbody"></tbody>
+        </table>
+        <div class="pagination" id="movements-pagination" style="display: none;">
+          <button class="pag-btn" id="mov-prev" type="button">Anterior</button>
+          <span class="pag-info" id="mov-page-info">1 / 1</span>
+          <button class="pag-btn" id="mov-next" type="button">Siguiente</button>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      Generado el <span id="generated-at">—</span> · <span id="movement-count">0</span> movimientos registrados
+    </footer>
+  </main>
+
+  <script>
+    // ===== Data injected by build_dashboard.py =====
+    const MOVEMENTS = [{"id": 1, "fecha": "2026-05-01", "tipo": "Ingreso", "categoria": "Nómina", "importe": 1402.0, "descripcion": "Nómina"}, {"id": 2, "fecha": "2026-05-05", "tipo": "Gasto", "categoria": "Compras", "importe": 110.0, "descripcion": "Monitor"}, {"id": 3, "fecha": "2026-05-09", "tipo": "Gasto", "categoria": "Compras", "importe": 65.44, "descripcion": "Zapatillas de deporte"}, {"id": 4, "fecha": "2026-05-09", "tipo": "Gasto", "categoria": "Compras", "importe": 18.0, "descripcion": "Pantalones cortos"}, {"id": 5, "fecha": "2026-05-10", "tipo": "Gasto", "categoria": "Ocio", "importe": 13.0, "descripcion": "Comida con amigos"}, {"id": 6, "fecha": "2026-05-07", "tipo": "Gasto", "categoria": "Compras", "importe": 29.42, "descripcion": "Zapatillas Nike"}, {"id": 7, "fecha": "2026-05-08", "tipo": "Gasto", "categoria": "Ocio", "importe": 3.0, "descripcion": "Cebos de pesca"}, {"id": 8, "fecha": "2026-05-11", "tipo": "Gasto", "categoria": "Alimentación", "importe": 5.6, "descripcion": "Comida"}, {"id": 9, "fecha": "2026-05-12", "tipo": "Gasto", "categoria": "Salud", "importe": 7.88, "descripcion": "Electrodos"}, {"id": 10, "fecha": "2026-05-15", "tipo": "Gasto", "categoria": "Ocio", "importe": 5.7, "descripcion": ""}, {"id": 11, "fecha": "2026-05-16", "tipo": "Gasto", "categoria": "Ocio", "importe": 3.2, "descripcion": ""}, {"id": 12, "fecha": "2026-05-22", "tipo": "Gasto", "categoria": "Ocio", "importe": 9.3, "descripcion": ""}, {"id": 13, "fecha": "2026-05-23", "tipo": "Gasto", "categoria": "Alimentación", "importe": 1.64, "descripcion": ""}, {"id": 14, "fecha": "2026-05-23", "tipo": "Gasto", "categoria": "Ocio", "importe": 3.1, "descripcion": ""}];
+    const CATEGORIES = {"Gasto": ["Alimentación", "Restauración", "Vivienda", "Suministros", "Transporte", "Salud", "Ocio", "Compras", "Suscripciones", "Otros"], "Ingreso": ["Nómina", "Extras", "Otros"]};
+    const DEPOSITS_INV = [{"fecha": "2026-05-11", "total_retirado": 808.0, "descripcion": "Retirada de cuenta corriente"}];
+    const GENERATED_AT = "26/05/2026 22:00";
+
+    // ===== Constants =====
+    const MONTHS_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+    const MONTHS_ES_SHORT = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+    const WEEK_COLORS = ['#FF4D7E', '#B968D9', '#4DD0E1', '#FFB74D', '#4DD494'];
+    const MUTED = '#7A8499';
+    const CARD_BORDER = '#1F2A3F';
+    const GRID_LINE = '#1A2333';
+    const INK = '#FFFFFF';
+    const MINT = '#4DD494';
+    const NEGATIVE = '#FF5252';
+
+    // Chart.js global defaults for dark theme
+    Chart.defaults.color = MUTED;
+    Chart.defaults.borderColor = GRID_LINE;
+    Chart.defaults.font.family = "'Inter', sans-serif";
+    Chart.defaults.font.size = 11;
+    Chart.defaults.plugins.legend.display = false;
+    Chart.defaults.plugins.tooltip.backgroundColor = '#0A0E1A';
+    Chart.defaults.plugins.tooltip.borderColor = CARD_BORDER;
+    Chart.defaults.plugins.tooltip.borderWidth = 1;
+    Chart.defaults.plugins.tooltip.titleColor = INK;
+    Chart.defaults.plugins.tooltip.bodyColor = INK;
+    Chart.defaults.plugins.tooltip.padding = 12;
+    Chart.defaults.plugins.tooltip.displayColors = false;
+    Chart.defaults.plugins.tooltip.titleFont = { family: "'Inter', sans-serif", size: 11, weight: '600' };
+    Chart.defaults.plugins.tooltip.bodyFont = { family: "'Inter', sans-serif", size: 13, weight: '500' };
+    Chart.defaults.plugins.tooltip.cornerRadius = 8;
+    Chart.defaults.plugins.tooltip.caretSize = 6;
+    Chart.defaults.animation.duration = 350;
+    Chart.defaults.animations.colors = false;
+    Chart.defaults.animations.x = false;
+
+    // Custom plugin: vertical guide line on hover (line + bar charts)
+    const hoverGuide = {
+      id: 'hoverGuide',
+      afterDatasetsDraw(chart) {
+        const active = chart.tooltip?.getActiveElements?.() || [];
+        if (active.length === 0) return;
+        const x = active[0].element.x;
+        const ctx = chart.ctx;
+        const top = chart.chartArea.top;
+        const bottom = chart.chartArea.bottom;
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(x, top);
+        ctx.lineTo(x, bottom);
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = 'rgba(77, 212, 148, 0.45)';
+        ctx.setLineDash([4, 4]);
+        ctx.stroke();
+        ctx.restore();
+      },
+    };
+
+    // ===== Formatters =====
+    const fmtEUR = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const fmtEURcompact = (v) => {
+      if (Math.abs(v) >= 1000) return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
+      return fmtEUR.format(v);
+    };
+    const fmtPct = (v) => new Intl.NumberFormat('es-ES', { style: 'percent', minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(v);
+    const fmtPct0 = (v) => new Intl.NumberFormat('es-ES', { style: 'percent', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(v);
+    const fmtFecha = (iso) => { const [y, m, d] = iso.split('-'); return `${d}/${m}/${y}`; };
+    const fmtFechaShort = (iso) => { const [y, m, d] = iso.split('-'); return `${d}/${m}`; };
+    const ymOf = (iso) => iso.slice(0, 7);
+    const yearOf = (iso) => parseInt(iso.slice(0, 4), 10);
+    const monthOf = (iso) => parseInt(iso.slice(5, 7), 10);
+    const dayOf = (iso) => parseInt(iso.slice(8, 10), 10);
+    const weekIndexOfDay = (day) => Math.min(4, Math.floor((day - 1) / 7));  // 0..4
+
+    // ===== State =====
+    const allYearMonths = (() => {
+      const set = new Set(MOVEMENTS.map(m => ymOf(m.fecha)));
+      const today = new Date();
+      const cur = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+      set.add(cur);
+      return [...set].sort().reverse();
+    })();
+    let selectedMonth = allYearMonths[0];
+    let movementsPage = 0;
+    const MOVEMENTS_PAGE_SIZE = 5;
+
+    // ===== Chart instances =====
+    let chartDaily, chartPctAhorro, chartWeekly;
+
+    // ===== Aggregators =====
+    const filterByMonth = (movs, ym) => movs.filter(m => ymOf(m.fecha) === ym);
+    const sumBy = (movs, pred) => movs.filter(pred).reduce((s, m) => s + m.importe, 0);
+
+    function computeKpis(movsMonth) {
+      const ingresos = sumBy(movsMonth, m => m.tipo === 'Ingreso');
+      const gastos = sumBy(movsMonth, m => m.tipo === 'Gasto');
+      const inversiones = sumBy(movsMonth, m => m.tipo === 'Gasto' && m.categoria === 'Inversiones');
+      return {
+        ingresos, gastos,
+        inversiones,
+        ahorro: ingresos - gastos,
+        pct: ingresos > 0 ? (ingresos - gastos) / ingresos : 0,
+      };
+    }
+    function buildVirtualInvestmentMovements(ym) {
+      return (DEPOSITS_INV || [])
+        .filter(d => d.fecha && d.fecha.slice(0, 7) === ym)
+        .map(d => ({
+          id: 'inv-' + d.fecha,
+          fecha: d.fecha,
+          tipo: 'Gasto',
+          categoria: 'Inversiones',
+          importe: d.total_retirado,
+          descripcion: d.descripcion || 'Depósito a cuenta de inversión',
+        }));
+    }
+    function computeDaily(movsMonth, ym) {
+      const [y, m] = ym.split('-').map(n => parseInt(n, 10));
+      const daysInMonth = new Date(y, m, 0).getDate();
+      const out = [];
+      for (let d = 1; d <= daysInMonth; d++) {
+        const dateIso = `${ym}-${String(d).padStart(2, '0')}`;
+        const dayGastos = movsMonth.filter(x => x.tipo === 'Gasto' && x.fecha === dateIso).reduce((s, x) => s + x.importe, 0);
+        out.push({ day: d, daily: dayGastos });
+      }
+      // Cumulative
+      let acc = 0;
+      const totalGastos = out.reduce((s, x) => s + x.daily, 0);
+      out.forEach(x => { acc += x.daily; x.cumulative = acc; x.pctOfMonth = totalGastos > 0 ? acc / totalGastos : 0; });
+      return out;
+    }
+    function computeTopCategorias(movsMonth, n = 10) {
+      const map = {};
+      for (const cat of CATEGORIES.Gasto) map[cat] = 0;
+      for (const m of movsMonth) {
+        if (m.tipo !== 'Gasto') continue;
+        if (!map.hasOwnProperty(m.categoria)) map[m.categoria] = 0;
+        map[m.categoria] += m.importe;
+      }
+      const total = Object.values(map).reduce((s, v) => s + v, 0);
+      return Object.entries(map)
+        .filter(([_, v]) => v > 0)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, n)
+        .map(([cat, v]) => ({ categoria: cat, total: v, pct: total > 0 ? v / total : 0 }));
+    }
+    function computeWeeklyBreakdown(movsMonth, ym) {
+      const [y, m] = ym.split('-').map(n => parseInt(n, 10));
+      const daysInMonth = new Date(y, m, 0).getDate();
+      const weeks = [
+        { idx: 0, days: [], gastos: 0 },
+        { idx: 1, days: [], gastos: 0 },
+        { idx: 2, days: [], gastos: 0 },
+        { idx: 3, days: [], gastos: 0 },
+        { idx: 4, days: [], gastos: 0 },
+      ];
+      for (let d = 1; d <= daysInMonth; d++) {
+        const w = weekIndexOfDay(d);
+        const dateIso = `${ym}-${String(d).padStart(2, '0')}`;
+        const dayGastos = movsMonth.filter(x => x.tipo === 'Gasto' && x.fecha === dateIso).reduce((s, x) => s + x.importe, 0);
+        weeks[w].days.push({ day: d, gastos: dayGastos });
+        weeks[w].gastos += dayGastos;
+      }
+      const totalGastos = weeks.reduce((s, w) => s + w.gastos, 0);
+      weeks.forEach(w => { w.pct = totalGastos > 0 ? w.gastos / totalGastos : 0; });
+      return weeks;
+    }
+
+    // ===== Renderers =====
+    function renderHeader() {
+      const [y, m] = selectedMonth.split('-').map(n => parseInt(n, 10));
+      document.getElementById('subtitle').textContent = `${MONTHS_ES[m - 1]} ${y}`;
+      document.getElementById('generated-at').textContent = GENERATED_AT;
+      document.getElementById('movement-count').textContent = MOVEMENTS.length;
+    }
+    function renderSelectors() {
+      const yearSel = document.getElementById('year-select');
+      const monthSel = document.getElementById('month-select');
+      const years = [...new Set(allYearMonths.map(ym => ym.slice(0, 4)))].sort().reverse();
+      yearSel.innerHTML = years.map(y => `<option value="${y}">${y}</option>`).join('');
+      const [curYear, curMonth] = selectedMonth.split('-');
+      yearSel.value = curYear;
+      monthSel.innerHTML = MONTHS_ES.map((n, i) => `<option value="${String(i + 1).padStart(2, '0')}">${n}</option>`).join('');
+      monthSel.value = curMonth;
+      yearSel.addEventListener('change', () => { selectedMonth = `${yearSel.value}-${monthSel.value}`; movementsPage = 0; rerender(); });
+      monthSel.addEventListener('change', () => { selectedMonth = `${yearSel.value}-${monthSel.value}`; movementsPage = 0; rerender(); });
+    }
+    function attachPaginationHandlers() {
+      // Solo redibujar la tabla — no tocar charts (evita parpadeo / re-render global).
+      document.getElementById('mov-prev').addEventListener('click', () => {
+        if (movementsPage > 0) {
+          movementsPage--;
+          renderMovementsTable(filterByMonth(MOVEMENTS, selectedMonth));
+        }
+      });
+      document.getElementById('mov-next').addEventListener('click', () => {
+        movementsPage++;
+        renderMovementsTable(filterByMonth(MOVEMENTS, selectedMonth));
+      });
+    }
+    function renderStats(k) {
+      document.getElementById('stat-global-amount').textContent = `${fmtEURcompact(k.gastos)} / ${fmtEURcompact(k.ingresos)}`;
+      document.getElementById('stat-global-sub').textContent = `${k.ingresos > 0 ? fmtPct0(k.gastos / k.ingresos) : '—'} consumido`;
+      document.getElementById('stat-ingresos').textContent = fmtEUR.format(k.ingresos);
+      // Separar gasto real e inversiones en stats distintos.
+      const gastoReal = k.gastos - k.inversiones;
+      document.getElementById('stat-gastos').textContent = fmtEUR.format(gastoReal);
+      document.getElementById('stat-inversiones').textContent = fmtEUR.format(k.inversiones);
+      const ahorroEl = document.getElementById('stat-ahorro');
+      ahorroEl.textContent = fmtEUR.format(k.ahorro);
+      ahorroEl.style.color = k.ahorro >= 0 ? 'var(--mint)' : 'var(--negative)';
+      document.getElementById('stat-ahorro-sub').textContent = '';
+    }
+    function renderWeeklyProgress(weeks, totalIngresos) {
+      const container = document.getElementById('weekly-progress');
+      container.innerHTML = weeks.map((w, i) => `
+        <div class="week-progress-cell" style="border-color: ${WEEK_COLORS[i]}33;">
+          <div class="week-num" style="color: ${WEEK_COLORS[i]};">Semana ${i + 1}</div>
+          <div class="week-amt">${fmtEURcompact(w.gastos)}</div>
+          <div class="week-pct" style="color: ${WEEK_COLORS[i]};">${totalIngresos > 0 ? fmtPct0(w.gastos / totalIngresos) : '—'}</div>
+        </div>
+      `).join('');
+    }
+    function renderTop10(rows) {
+      const ol = document.getElementById('top10-list');
+      if (rows.length === 0) {
+        ol.innerHTML = `<li class="empty-row"><div class="empty">Sin gastos este mes</div></li>`;
+        return;
+      }
+      ol.innerHTML = rows.map(r => `
+        <li>
+          <div class="item-text">
+            <div class="item-name">${escapeHtml(r.categoria)} · ${fmtEUR.format(r.total)}</div>
+            <div class="item-bar"><div class="item-bar-fill" style="width: ${(r.pct * 100).toFixed(1)}%"></div></div>
+          </div>
+          <div class="item-pct">${fmtPct(r.pct)}</div>
+        </li>
+      `).join('');
+    }
+    function renderMovementsTable(movsMonth) {
+      const tbody = document.getElementById('movements-tbody');
+      const pag = document.getElementById('movements-pagination');
+      const sorted = [...movsMonth].sort((a, b) => b.fecha.localeCompare(a.fecha) || b.id - a.id);
+
+      if (sorted.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="empty">Sin movimientos este mes</td></tr>`;
+        pag.style.display = 'none';
+        return;
+      }
+
+      const totalPages = Math.max(1, Math.ceil(sorted.length / MOVEMENTS_PAGE_SIZE));
+      if (movementsPage >= totalPages) movementsPage = totalPages - 1;
+      if (movementsPage < 0) movementsPage = 0;
+      const start = movementsPage * MOVEMENTS_PAGE_SIZE;
+      const slice = sorted.slice(start, start + MOVEMENTS_PAGE_SIZE);
+
+      tbody.innerHTML = slice.map(m => {
+        const w = weekIndexOfDay(dayOf(m.fecha));
+        const tipoClass = m.tipo === 'Ingreso' ? 'amount-ingreso' : 'amount-gasto';
+        const sign = m.tipo === 'Ingreso' ? '+' : '−';
+        return `
+          <tr>
+            <td class="col-week"><span class="week-mark" style="background: ${WEEK_COLORS[w]};"></span></td>
+            <td class="col-date">${fmtFechaShort(m.fecha)}</td>
+            <td class="col-type">${m.tipo}</td>
+            <td class="col-cat">${escapeHtml(m.categoria)}</td>
+            <td class="col-desc">${escapeHtml(m.descripcion || '—')}</td>
+            <td class="col-amount ${tipoClass}">${sign}${fmtEUR.format(m.importe)}</td>
+          </tr>
+        `;
+      }).join('');
+
+      if (sorted.length <= MOVEMENTS_PAGE_SIZE) {
+        pag.style.display = 'none';
+      } else {
+        pag.style.display = 'flex';
+        document.getElementById('mov-page-info').textContent = `${movementsPage + 1} / ${totalPages} · ${sorted.length} movimientos`;
+        document.getElementById('mov-prev').disabled = movementsPage === 0;
+        document.getElementById('mov-next').disabled = movementsPage >= totalPages - 1;
+      }
+    }
+    function escapeHtml(s) { const d = document.createElement('div'); d.textContent = String(s); return d.innerHTML; }
+
+    function renderDailyChart(daily) {
+      if (chartDaily) chartDaily.destroy();
+      const ctx = document.getElementById('chart-daily');
+      const c = ctx.getContext('2d');
+      const grad = c.createLinearGradient(0, 0, 0, 220);
+      grad.addColorStop(0, MINT + '55');
+      grad.addColorStop(1, MINT + '00');
+      const maxCumulative = Math.max(...daily.map(d => d.cumulative), 0);
+      const yMax = maxCumulative > 0 ? maxCumulative * 1.15 : 100;
+      chartDaily = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: daily.map(d => String(d.day)),
+          datasets: [{
+            label: 'Acumulado',
+            data: daily.map(d => d.cumulative),
+            borderColor: MINT,
+            backgroundColor: grad,
+            tension: 0.35, fill: true, borderWidth: 2.5,
+            pointRadius: 0, pointHitRadius: 20, pointHoverRadius: 6,
+            pointHoverBackgroundColor: MINT, pointHoverBorderColor: '#FFFFFF', pointHoverBorderWidth: 2,
+          }],
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false, axis: 'x' },
+          plugins: {
+            tooltip: {
+              position: 'nearest',
+              callbacks: {
+                title: ctx => {
+                  const day = ctx[0].label;
+                  const [y, m] = selectedMonth.split('-');
+                  return `${day.padStart(2, '0')}/${m}/${y}`;
+                },
+                label: ctx => `Acumulado: ${fmtEUR.format(ctx.parsed.y)}`,
+                afterLabel: ctx => {
+                  const dayData = daily[ctx.dataIndex];
+                  return dayData.daily > 0 ? `Gasto del día: ${fmtEUR.format(dayData.daily)}` : 'Sin gasto este día';
+                },
+              },
+            },
+          },
+          scales: {
+            x: { grid: { display: false }, ticks: { color: MUTED, maxTicksLimit: 12, font: { size: 10 } } },
+            y: { grid: { color: GRID_LINE, drawTicks: false }, border: { display: false }, ticks: { color: MUTED, callback: v => fmtEURcompact(v), font: { size: 10 } }, min: 0, max: yMax, beginAtZero: true },
+          },
+        },
+        plugins: [hoverGuide],
+      });
+    }
+    function renderPctAhorroChart(pct, k) {
+      if (chartPctAhorro) chartPctAhorro.destroy();
+      const ctx = document.getElementById('chart-pct-ahorro');
+      const valueEl = document.getElementById('donut-pct-value');
+      valueEl.textContent = fmtPct(Math.max(0, pct));
+      valueEl.classList.toggle('negative', pct < 0);
+      const filled = Math.max(0, Math.min(1, pct));
+      const remaining = 1 - filled;
+      const color = pct < 0 ? NEGATIVE : MINT;
+      chartPctAhorro = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: ['Ahorrado', 'Gastado'],
+          datasets: [{
+            data: [filled, remaining],
+            backgroundColor: [color, GRID_LINE],
+            hoverBackgroundColor: [color + 'DD', '#243049'],
+            borderWidth: 0,
+            cutout: '78%',
+            circumference: 360,
+            rotation: -90,
+          }],
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false, cutout: '78%',
+          plugins: {
+            tooltip: {
+              callbacks: {
+                title: ctx => ctx[0].label,
+                label: ctx => {
+                  if (ctx.dataIndex === 0) return `${fmtPct(filled)} · ${fmtEUR.format(k.ahorro)}`;
+                  return `Ingresos ${fmtEUR.format(k.ingresos)} · Gastos ${fmtEUR.format(k.gastos)}`;
+                },
+              },
+            },
+          },
+        },
+      });
+    }
+    function renderWeeklyChart(daily) {
+      if (chartWeekly) chartWeekly.destroy();
+      const ctx = document.getElementById('chart-weekly-overview');
+      const colors = daily.map(d => WEEK_COLORS[weekIndexOfDay(d.day)]);
+      chartWeekly = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: daily.map(d => String(d.day)),
+          datasets: [{
+            data: daily.map(d => d.daily),
+            backgroundColor: colors,
+            hoverBackgroundColor: colors.map(c => c + 'DD'),
+            borderRadius: 4,
+            borderSkipped: false,
+            borderWidth: 0,
+            barPercentage: 0.85,
+            categoryPercentage: 0.95,
+          }],
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false, axis: 'x' },
+          plugins: {
+            tooltip: {
+              position: 'nearest',
+              callbacks: {
+                title: ctx => {
+                  const day = ctx[0].label;
+                  const [y, m] = selectedMonth.split('-');
+                  const w = weekIndexOfDay(parseInt(day, 10)) + 1;
+                  return `${day.padStart(2, '0')}/${m}/${y} · Sem ${w}`;
+                },
+                label: ctx => ctx.parsed.y > 0 ? `Gasto: ${fmtEUR.format(ctx.parsed.y)}` : 'Sin gasto este día',
+                afterLabel: ctx => {
+                  const day = parseInt(ctx.label, 10);
+                  const [y, m] = selectedMonth.split('-');
+                  const dateIso = `${y}-${m}-${String(day).padStart(2, '0')}`;
+                  const items = MOVEMENTS.filter(x => x.tipo === 'Gasto' && x.fecha === dateIso)
+                    .map(x => `· ${x.categoria}: ${escapeHtml(x.descripcion || '')}`);
+                  const invs = (DEPOSITS_INV || []).filter(d => d.fecha === dateIso)
+                    .map(d => `· Inversiones: ${escapeHtml(d.descripcion || 'Depósito')}`);
+                  const all = [...items, ...invs];
+                  return all.length > 0 ? all.join('\n') : null;
+                },
+              },
+            },
+          },
+          scales: {
+            x: { grid: { display: false }, ticks: { color: MUTED, font: { size: 10 } } },
+            y: { grid: { color: GRID_LINE, drawTicks: false }, border: { display: false }, ticks: { color: MUTED, callback: v => fmtEURcompact(v), font: { size: 10 } } },
+          },
+        },
+        plugins: [hoverGuide],
+      });
+    }
+
+    // ===== Main rerender =====
+    function rerender() {
+      const movsMonth = filterByMonth(MOVEMENTS, selectedMonth);
+      const virtualInv = buildVirtualInvestmentMovements(selectedMonth);
+      const movsForAnalytics = [...movsMonth, ...virtualInv];
+      const k = computeKpis(movsForAnalytics);
+      const daily = computeDaily(movsMonth, selectedMonth);
+      const weeks = computeWeeklyBreakdown(movsMonth, selectedMonth);
+      const top = computeTopCategorias(movsForAnalytics, 10);
+      const invertidoMes = virtualInv.reduce((s, m) => s + m.importe, 0);
+
+      renderHeader();
+      renderStats(k);
+      renderWeeklyProgress(weeks, k.ingresos);
+      renderTop10(top);
+      renderMovementsTable(movsMonth);
+      renderDailyChart(daily);
+      renderPctAhorroChart(k.pct, k);
+      renderWeeklyChart(daily);
+
+      document.getElementById('donut-side-gastado').textContent = fmtEUR.format(k.gastos);
+      document.getElementById('line-side-invertido').textContent = fmtEUR.format(invertidoMes);
+    }
+
+    // ===== Boot =====
+    renderSelectors();
+    attachPaginationHandlers();
+    rerender();
+  </script>
+</body>
+</html>
