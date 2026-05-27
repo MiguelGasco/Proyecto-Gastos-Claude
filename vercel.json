@@ -1,4 +1,4 @@
 {
-  "buildCommand": "echo done",
-  "outputDirectory": "."
+  "buildCommand": "bash build.sh",
+  "outputDirectory": "/vercel/output"
 }
