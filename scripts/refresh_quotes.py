@@ -25,6 +25,9 @@ from scripts.investments_store import load as load_investments
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_INVESTMENTS_PATH = PROJECT_ROOT / "data" / "investments.json"
 DEFAULT_QUOTES_PATH = PROJECT_ROOT / "data" / "quotes.json"
+# Cross-project: universo de swing trading + trades abiertos (Proyecto Finanzas Claude)
+DEFAULT_WATCHLIST_SWING_PATH = Path("c:/Users/migas/Documents/Proyecto Finanzas Claude/cartera/watchlist_swing.json")
+DEFAULT_TRADES_PATH = Path("c:/Users/migas/Documents/Proyecto Finanzas Claude/cartera/trades.json")
 
 FALLBACK_EUR_PER_USD = 0.92
 
@@ -96,7 +99,28 @@ def main() -> int:
 
     store = load_investments(DEFAULT_INVESTMENTS_PATH)
     ops = store.get("operations", [])
-    tickers = sorted({op["ticker"] for op in ops})
+    tickers_set = {op["ticker"] for op in ops}
+
+    # Añadir tickers del universo de swing trading (Proyecto Finanzas Claude)
+    if DEFAULT_WATCHLIST_SWING_PATH.exists():
+        try:
+            with open(DEFAULT_WATCHLIST_SWING_PATH, encoding="utf-8") as f:
+                wl = json.load(f)
+            for w in wl.get("tickers", []):
+                tickers_set.add(w.get("ticker_yfinance", w.get("ticker")))
+        except Exception as e:
+            print(f"  (warn: no pude leer watchlist_swing.json: {e})", file=sys.stderr)
+    # Añadir tickers de los trades abiertos
+    if DEFAULT_TRADES_PATH.exists():
+        try:
+            with open(DEFAULT_TRADES_PATH, encoding="utf-8") as f:
+                td = json.load(f)
+            for tr in td.get("trades_abiertos", []):
+                tickers_set.add(tr["ticker"])
+        except Exception as e:
+            print(f"  (warn: no pude leer trades.json: {e})", file=sys.stderr)
+
+    tickers = sorted(tickers_set)
     if not tickers:
         print("Sin tickers que actualizar.")
         return 0

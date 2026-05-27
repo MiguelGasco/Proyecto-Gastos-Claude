@@ -284,7 +284,7 @@
     /* Stats row inside weekly overview */
     .weekly-stats {
       display: grid;
-      grid-template-columns: 1.4fr 1fr 1fr 1fr;
+      grid-template-columns: 1.4fr 1fr 1fr 1fr 1fr;
       gap: 24px;
       margin-top: 22px;
       padding-top: 20px;
@@ -562,6 +562,10 @@
       <div class="card line-card">
         <div class="line-card-head">
           <div class="card-title">Gasto acumulado del mes</div>
+          <div class="donut-side-stat">
+            <div class="label">Invertido</div>
+            <div class="value" id="line-side-invertido">—</div>
+          </div>
         </div>
         <div class="chart-container"><canvas id="chart-daily"></canvas></div>
       </div>
@@ -611,6 +615,10 @@
         <div class="stat-block">
           <div class="stat-label">Gastos</div>
           <div class="stat-value" id="stat-gastos">—</div>
+        </div>
+        <div class="stat-block">
+          <div class="stat-label">Inversiones</div>
+          <div class="stat-value" id="stat-inversiones">—</div>
         </div>
         <div class="stat-block">
           <div class="stat-label">Ahorro neto</div>
@@ -848,28 +856,30 @@
       monthSel.addEventListener('change', () => { selectedMonth = `${yearSel.value}-${monthSel.value}`; movementsPage = 0; rerender(); });
     }
     function attachPaginationHandlers() {
+      // Solo redibujar la tabla — no tocar charts (evita parpadeo / re-render global).
       document.getElementById('mov-prev').addEventListener('click', () => {
-        if (movementsPage > 0) { movementsPage--; rerender(); }
+        if (movementsPage > 0) {
+          movementsPage--;
+          renderMovementsTable(filterByMonth(MOVEMENTS, selectedMonth));
+        }
       });
       document.getElementById('mov-next').addEventListener('click', () => {
-        movementsPage++; rerender();
+        movementsPage++;
+        renderMovementsTable(filterByMonth(MOVEMENTS, selectedMonth));
       });
     }
     function renderStats(k) {
       document.getElementById('stat-global-amount').textContent = `${fmtEURcompact(k.gastos)} / ${fmtEURcompact(k.ingresos)}`;
       document.getElementById('stat-global-sub').textContent = `${k.ingresos > 0 ? fmtPct0(k.gastos / k.ingresos) : '—'} consumido`;
       document.getElementById('stat-ingresos').textContent = fmtEUR.format(k.ingresos);
-      document.getElementById('stat-gastos').textContent = fmtEUR.format(k.gastos);
+      // Separar gasto real e inversiones en stats distintos.
+      const gastoReal = k.gastos - k.inversiones;
+      document.getElementById('stat-gastos').textContent = fmtEUR.format(gastoReal);
+      document.getElementById('stat-inversiones').textContent = fmtEUR.format(k.inversiones);
       const ahorroEl = document.getElementById('stat-ahorro');
       ahorroEl.textContent = fmtEUR.format(k.ahorro);
       ahorroEl.style.color = k.ahorro >= 0 ? 'var(--mint)' : 'var(--negative)';
-      const ahorroSub = document.getElementById('stat-ahorro-sub');
-      if (k.inversiones > 0) {
-        ahorroSub.textContent = `Incluye ${fmtEUR.format(k.inversiones)} en Inversiones`;
-        ahorroSub.style.color = 'var(--muted)';
-      } else {
-        ahorroSub.textContent = '';
-      }
+      document.getElementById('stat-ahorro-sub').textContent = '';
     }
     function renderWeeklyProgress(weeks, totalIngresos) {
       const container = document.getElementById('weekly-progress');
@@ -1093,9 +1103,10 @@
       const virtualInv = buildVirtualInvestmentMovements(selectedMonth);
       const movsForAnalytics = [...movsMonth, ...virtualInv];
       const k = computeKpis(movsForAnalytics);
-      const daily = computeDaily(movsForAnalytics, selectedMonth);
-      const weeks = computeWeeklyBreakdown(movsForAnalytics, selectedMonth);
+      const daily = computeDaily(movsMonth, selectedMonth);
+      const weeks = computeWeeklyBreakdown(movsMonth, selectedMonth);
       const top = computeTopCategorias(movsForAnalytics, 10);
+      const invertidoMes = virtualInv.reduce((s, m) => s + m.importe, 0);
 
       renderHeader();
       renderStats(k);
@@ -1107,6 +1118,7 @@
       renderWeeklyChart(daily);
 
       document.getElementById('donut-side-gastado').textContent = fmtEUR.format(k.gastos);
+      document.getElementById('line-side-invertido').textContent = fmtEUR.format(invertidoMes);
     }
 
     // ===== Boot =====
